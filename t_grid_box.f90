@@ -1,31 +1,34 @@
-module t_mg
-
-  use t_grid_box
+module t_grid_box
 
   implicit none
 
-  ! a module to sustain a "simple" multi-grid solver using the 
+  integer, parameter :: dp = selected_real_kind(p=15)
+  integer, parameter :: grid_p = selected_real_kind(p=6)
 
-  type :: mg_grid
-     ! the grid information
-     integer :: n1, n2, n3 ! size in each direction
-     real(grid_p) :: sor ! the SOR value
-     real(grid_p) :: ax, ay, az ! the pre-factors for the summation
-     real(grid_p) :: tol ! the tolerance of the current grid
-                         ! this allows different tolerances for different layer-grids
-     integer :: itt ! iterations needed to converge...
-     integer :: layer ! the layer that this grid resides in
-     real(grid_p), pointer :: V(:) => null() ! black/red update array
-     real(grid_p), pointer :: g(:) => null() ! ghost arrays ( one long array for all bounds )
-     real(grid_p), pointer :: g_s(:) => null() ! send ghost arrays ( one long array for all bounds )
-     type(mg_grid), pointer :: parent => null()
-     type(mg_grid), pointer :: child => null()
-     type(mg_box), allocatable :: boxes(:)
-  end type mg_grid
+  type :: mg_box
+     sequence
+     ! this contains the min/max indices for the constant region
+     ! xmin/xmax
+     ! ymin/ymax
+     ! zmin/zmax
+     integer :: place(2,3) = 0
+     real(grid_p) :: val = 0._grid_p
+     logical :: constant = .false.
+  end type mg_box
 
 contains
 
-  subroutine init_grid(grid, n1, n2, n3, tol, cell, layer)
+  subroutine mv_xa2uc(na_u,xa,xa_u)
+    integer, intent(in) :: na_u
+    real(dp), intent(in) :: xa(3,na_u)
+    real(dp), intent(out) :: xa_u(3,na_u)
+    
+    
+    
+
+  subroutine crt_box(na_u,xa,cell,
+
+  subroutine init_box(box, cell, , layer)
     type(mg_grid), intent(inout) :: grid
     integer,  intent(in) :: n1, n2, n3
     real(grid_p), intent(in) :: tol
