@@ -20,17 +20,40 @@ contains
     
     grid => top_grid
     do while ( associated(grid%child) ) 
+
+       ! allocate space for the child
+       call grid_bring_back(grid%child)
+       
+       ! restrict data to child
+       call grid_restriction(grid)
+
+       ! this will hold-back the grid
+       call grid_hold_back(grid)
+       
+       ! next
        grid => grid%child
-       ! precontraction
-       call init_grid_child(grid)
+
     end do
     
     do while ( associated(grid) ) 
+
        old_itt = grid%itt
+
        call grid_solve(grid)
 
-       ! prolongation
-       call init_grid_parent(grid)
+       ! bring back data
+       call grid_bring_back(grid%parent)
+
+       call grid_prolongation(grid)
+
+       ! hold back data
+       if ( associated(grid%parent) ) then
+          call grid_hold_back(grid)
+       end if
+
+       write(*,'(2(a,i0),a)') &
+            'Completed (',grid%layer,') cycle in ',grid%itt-old_itt,' cycles'
+       
        grid => grid%parent
 
 !       cycle
