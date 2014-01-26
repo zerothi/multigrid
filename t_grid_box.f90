@@ -12,23 +12,25 @@ module t_grid_box
      ! ymin/ymax
      ! zmin/zmax
      integer :: place(2,3) = 0
-     real(grid_p) :: val = 0._grid_p
+     real(grid_p) :: val = 1._grid_p ! *MUST be above 1*
      logical :: constant = .false.
   end type mg_box
 
 contains
 
-  subroutine mv_xa2uc(na_u,xa,xa_u)
-    integer, intent(in) :: na_u
-    real(dp), intent(in) :: xa(3,na_u)
-    real(dp), intent(out) :: xa_u(3,na_u)
-    
-    
-    
+  pure function in_box(box,x,y,z) result(in)
+    type(mg_box), intent(in) :: box
+    integer, intent(in) :: x,y,z
+    in = x <= grid%box(i)%box%place(1,1) .and. &
+         grid%box(i)%box%place(2,1) <= x .and. &
+         y <= grid%box(i)%box%place(1,2) .and. &
+         grid%box(i)%box%place(2,2) <= y .and. &
+         z <= grid%box(i)%box%place(1,3) .and. &
+         grid%box(i)%box%place(2,3) <= z
+  end function in_box
 
-  subroutine crt_box(na_u,xa,cell,
 
-  subroutine init_box(box, cell, , layer)
+  subroutine init_box(grid, box, cell, layer)
     type(mg_grid), intent(inout) :: grid
     integer,  intent(in) :: n1, n2, n3
     real(grid_p), intent(in) :: tol
@@ -78,37 +80,6 @@ contains
     allocate(grid%g(n1*2+n2*2+n3*2))
     allocate(grid%g_s(n1*2+n2*2+n3*2))
     
-  end subroutine init_grid
-
-  subroutine init_grid_child(grid)
-    type(mg_grid), intent(inout) :: grid
-    < do the precontraction >
-  end subroutine init_grid_child
-
-  subroutine init_grid_parent(grid)
-    type(mg_grid), intent(inout) :: grid
-    < do the prolongation >
-  end subroutine init_grid_parent
-
-  recursive subroutine delete_grid(grid)
-    type(mg_grid), intent(inout) :: grid
-    if ( associated(grid%child) ) then
-       call delete_grid(grid%child)
-       deallocate(grid%child)
-       nullify(grid%child)
-    end if
-    if ( associated(grid%V)   ) deallocate(grid%V)
-    if ( associated(grid%g)   ) deallocate(grid%g)
-    if ( associated(grid%g_s) ) deallocate(grid%g_s)
-    nullify(grid%V,grid%g_s) ! ensure nullification
-  end subroutine delete_grid
+  end subroutine init_box
 
 end module t_mg
-
-subroutine from1dto3d(n1,n2,n3,V1D,V3D)
-  use t_mg, only : grid_p
-  integer,   intent(in) :: n1, n2, n3
-  real(grid_p),  target :: V1D(n1,n2,n3)
-  real(grid_p), pointer :: V3D(:,:,:)
-  V3D => V1D
-end subroutine from1dto3d

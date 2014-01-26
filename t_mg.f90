@@ -8,9 +8,9 @@ module t_mg
 
   type :: mg_grid
      ! the grid information
-     integer :: n1, n2, n3 ! size in each direction
+     integer :: n(3) ! size in each direction
      real(grid_p) :: sor ! the SOR value
-     real(grid_p) :: ax, ay, az ! the pre-factors for the summation
+     real(grid_p) :: a(3) ! the pre-factors for the summation
      real(grid_p) :: tol ! the tolerance of the current grid
                          ! this allows different tolerances for different layer-grids
      integer :: itt ! iterations needed to converge...
@@ -20,7 +20,8 @@ module t_mg
      real(grid_p), pointer :: g_s(:) => null() ! send ghost arrays ( one long array for all bounds )
      type(mg_grid), pointer :: parent => null()
      type(mg_grid), pointer :: child => null()
-     type(mg_box), allocatable :: boxes(:)
+     integer :: N_box
+     type(mg_box), allocatable :: box(:)
   end type mg_grid
 
 contains
@@ -119,80 +120,77 @@ contains
   subroutine grid_restriction(grid)
     type(mg_grid), intent(inout) :: grid
 
-    ! if the child does not exist, then return immediately
-    if ( .not. associated(grid%child) ) return
-
     type(mg_grid), intent(inout), target :: grid
 
-    real(grid_p), pointer :: Vc(:,:,:), V(:,:,:)
+    real(grid_p),  pointer :: V(:,:,:), Vc(:,:,:)
     type(mg_grid), pointer :: child
 
-    real(grid_p), parameter :: f6  = 1._grid_p / 6._grid_p
-    real(grid_p), parameter :: f12 = 1._grid_p / 12._grid_p
-    real(grid_p), parameter :: f24 = 1._grid_p / 24._grid_p
-
-    real(grid_p) :: v6, v12, v24
+    real(grid_p), parameter :: f1 = 1._grid_p / 64._grid_p
+    real(grid_p), parameter :: f2 = 2._grid_p / 64._grid_p
+    real(grid_p), parameter :: f4 = 4._grid_p / 64._grid_p
+    real(grid_p), parameter :: f8 = 8._grid_p / 64._grid_p
 
     integer :: x,y,z, px,py,pz
 
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%child) ) return
 
-    child => grid%child
     call from1dto3d(grid%n1 ,grid%n2 ,grid%n3 ,grid%V ,V )
+    child => grid%child
     call from1dto3d(child%n1,child%n2,child%n3,child%V,Vc)
 
-    ! initialize the parent
-    Vp = 0._grid_p
+    ! initialize the child
+    Vc = 0._grid_p
+
+    ! we employ full-weighting
 
     do z = 2 , grid%n3 - 1 , 2
     pz = z / 2 
     do y = 2 , grid%n2 - 1 , 2
     py = y / 2
     do x = 2 , grid%n1 - 1 , 2
-       
        px = x / 2
 
-       v6  = f6  * V(x,y,z)
-       v12 = f12 * V(x,y,z)
-       v24 = f24 * V(x,y,z)
-
        ! corners
-       Vp(px-1,py-1,pz-1) = Vp(px-1,py-1,pz-1) + v24
-       Vp(px-1,py-1,pz+1) = Vp(px-1,py-1,pz+1) + v24
-       Vp(px-1,py+1,pz-1) = Vp(px-1,py+1,pz-1) + v24
-       Vp(px-1,py+1,pz+1) = Vp(px-1,py+1,pz+1) + v24
-       Vp(px+1,py-1,pz-1) = Vp(px+1,py-1,pz-1) + v24
-       Vp(px+1,py-1,pz+1) = Vp(px+1,py-1,pz+1) + v24
-       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v24
-       Vp(px+1,py+1,pz+1) = Vp(px+1,py+1,pz+1) + v24
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y-1,z-1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y-1,z+1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y+1,z-1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y+1,z+1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y-1,z-1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y-1,z+1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y+1,z-1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y+1,z+1) * f1
 
        ! middles
-       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v12
-       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v12
-       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v12
-       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v12
-       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v12
-       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v12
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v12
-       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v12
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y-1,z) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y+1,z) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y,z-1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y,z+1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y-1,z) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y+1,z) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y,z-1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y,z+1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y-1,z-1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y-1,z+1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y+1,z-1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y+1,z+1) * f2
 
        ! neighbours
-       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v6
-       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v6
-       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v6
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v6
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v6
-       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v6
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y,z) * f4
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y,z) * f4
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y-1,z) * f4
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y+1,z) * f4
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y,z-1) * f4
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y,z+1) * f4
 
        ! center
-       Vp(px,py,pz)   = V(x,y,z)
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y,z) * f8
 
     end do
     end do
     end do
 
-    ! we still need the boarder...
+    ! we still need the border...
 
   end subroutine grid_restriction
 
@@ -213,8 +211,8 @@ contains
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%parent) ) return
 
-    parent => grid%parent
     call from1dto3d(grid%n1  ,grid%n2  ,grid%n3  ,grid%V  ,V )
+    parent => grid%parent
     call from1dto3d(parent%n1,parent%n2,parent%n3,parent%V,Vp)
 
     ! initialize the parent
@@ -251,6 +249,10 @@ contains
        Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v4
        Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v4
        Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v4
+       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v4
+       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v4
+       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v4
+       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v4
 
        ! neighbours
        Vp(px-1,py,pz) = Vp(px-1,py,pz) + v2
@@ -261,13 +263,53 @@ contains
        Vp(px,py,pz+1) = Vp(px,py,pz+1) + v2
 
        ! center
-       Vp(px,py,pz)   = V(x,y,z)
+       Vp(px,py,pz) = V(x,y,z)
 
     end do
     end do
     end do
 
-  end subroutine grid_precontraction
+    ! we still need the border
+
+  end subroutine grid_prolongation
+
+  function is_constant(grid,x,y,z) result(is)
+    type(mg_grid), intent(in) :: grid
+    integer, intent(in) :: x,y,z
+    
+    integer :: i
+    
+    do i = 1 , grid%N_box
+       if ( grid%box(i)%box%constant ) then
+          if ( in_box(grid%box(i)%box,x,y,z) ) then
+             is = .true.
+             return
+          end if
+       end if
+    end do
+    is = .false.
+
+  end function is_constant
+
+  function val_rho(grid,x,y,z) result(val)
+    type(mg_grid), intent(in) :: grid
+    integer, intent(in) :: x,y,z
+    real(grid_p) :: val
+    
+    integer :: i
+    
+    do i = 1 , grid%N_box
+       if ( grid%box(i)%box%constant ) then
+          if ( in_box(grid%box(i)%box,x,y,z) )then
+             val = grid%box(i)%box%val
+             return
+          end if
+       end if
+    end do
+    ! all values are defaulted to 1
+    val = 1._grid_p
+
+  end function val_rho
 
 end module t_mg
 

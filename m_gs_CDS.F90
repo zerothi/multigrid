@@ -1,4 +1,4 @@
-module m_gs
+module m_gs_CDS
 
   use t_mg
   
@@ -6,14 +6,14 @@ module m_gs
 
   private
 
-  integer, parameter :: MG_METHOD_GS_TEMPORAL = 1
+  integer, parameter :: MG_METHOD_GS_TEMPORAL_CDS = 1
 
-  public :: mg_gs
-  public :: MG_METHOD_GS_TEMPORAL
+  public :: mg_gs_cds
+  public :: MG_METHOD_GS_TEMPORAL_CDS
 
 contains
 
-  subroutine mg_gs(top_grid)
+  subroutine mg_gs_cds(top_grid)
     type(mg_grid), pointer :: top_grid
     type(mg_grid), pointer :: grid
     integer :: old_itt
@@ -84,7 +84,7 @@ contains
 
     tol = grid%tol + 1._grid_p
 
-    call from1Dto3D(grid%n1,grid%n2,grid%n3,grid%V, V)
+    call from1Dto3D(grid%n(1),grid%n(2),grid%n(3),grid%V, V)
 
     do while ( tol > grid%tol ) 
 
@@ -114,16 +114,11 @@ contains
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
-    a(1) = grid%ax
-    a(2) = grid%ay
-    a(3) = grid%az
-    
-    do z = 2 , grid%n3 - 1
-       do y = 2 , grid%n2 - 1
-          do x = 2 , grid%n1 - 1
-             if ( in_constant(x,y,z) ) cycle
+    do z = 2 , grid%n(3) - 1
+       do y = 2 , grid%n(2) - 1
+          do x = 2 , grid%n(1) - 1
              ! calculate the current contribution
-             vcur = val(a,V,x,y,z)
+             vcur = val(grid,V,x,y,z)
              ! Calculate the tolerance
              tol = max(abs(V(x,y,z) - vcur),tol)
              V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
@@ -139,11 +134,11 @@ contains
     real(grid_p), intent(inout) :: tol
 
     call gs_xb(grid,1,V,tol)
-    call gs_xb(grid,grid%n1,V,tol)
+    call gs_xb(grid,grid%n(1),V,tol)
     call gs_yb(grid,1,V,tol)
-    call gs_yb(grid,grid%n2,V,tol)
+    call gs_yb(grid,grid%n(2),V,tol)
     call gs_zb(grid,1,V,tol)
-    call gs_zb(grid,grid%n3,V,tol)
+    call gs_zb(grid,grid%n(3),V,tol)
 
   end subroutine gs_bound
   
@@ -154,7 +149,7 @@ contains
     integer, intent(in) :: x
     real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
     real(grid_p), intent(inout) :: tol
-    real(grid_p) :: vcur, a(3), sor(2)
+    real(grid_p) :: vcur, sor(2)
     integer :: dx,y,z
     if ( x == 1 ) then
        dx = 1 
@@ -164,25 +159,20 @@ contains
 
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
-
-    a(1) = grid%ax
-    a(2) = grid%ay
-    a(3) = grid%az
     
     ! x-corners
 !    call gs_corner(a,sor,V,x,      1,1, dx, 1,1,tol)
 !    z = 1
-!    do y = 2 , grid%n2 - 1
+!    do y = 2 , grid%n(2) - 1
 !       if ( is_constant(x,y,z) ) cycle
-!       call gs_line(,x,grid%n2,1, dx,-1,1,tol)
+!       call gs_line(,x,grid%n(2),1, dx,-1,1,tol)
 !    end do
-!    call gs_corner(a,sor,V,x,grid%n2,1, dx,-1,1,tol)
+!    call gs_corner(a,sor,V,x,grid%n(2),1, dx,-1,1,tol)
 
-    do z = 2 , grid%n3 - 1
-       do y = 2 , grid%n2 - 1
-          if ( in_constant(x,y,z) ) cycle
+    do z = 2 , grid%n(3) - 1
+       do y = 2 , grid%n(2) - 1
           ! calculate the current contribution
-          vcur = val_xb(a,V,dx,y,z)
+          vcur = val_xb(grid,V,dx,y,z)
           ! Calculate the tolerance
           tol = max(abs(V(x,y,z) - vcur),tol)
           ! we implement the SOR-algorithm
@@ -191,8 +181,8 @@ contains
     end do
 
     ! x-corners
-!    call gs_corner(a,sor,V,x,      1,grid%n3, dx, 1,-1,tol)
-!    call gs_corner(a,sor,V,x,grid%n2,grid%n3, dx,-1,-1,tol)
+!    call gs_corner(a,sor,V,x,      1,grid%n(3), dx, 1,-1,tol)
+!    call gs_corner(a,sor,V,x,grid%n(2),grid%n(3), dx,-1,-1,tol)
 
 !  contains 
 !    
@@ -221,7 +211,7 @@ contains
     integer, intent(in) :: y
     real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
     real(grid_p), intent(inout) :: tol
-    real(grid_p) :: vcur, a(3), sor(2)
+    real(grid_p) :: vcur, sor(2)
     integer :: x,dy,z
     if ( y == 1 ) then
        dy = 1 
@@ -232,19 +222,14 @@ contains
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
-    a(1) = grid%ax
-    a(2) = grid%ay
-    a(3) = grid%az
-
 !    ! y-corners
-!    call gs_corner(a,sor,V,      1,y,1,  1,dy,1,tol)
-!    call gs_corner(a,sor,V,grid%n1,y,1, -1,dy,1,tol)
+!    call gs_corner(grid,sor,V,      1,y,1,  1,dy,1,tol)
+!    call gs_corner(grid,sor,V,grid%n(1),y,1, -1,dy,1,tol)
     
-    do z = 2 , grid%n3 - 1
-       do x = 2 , grid%n1 - 1
-          if ( in_constant(x,y,z) ) cycle
+    do z = 2 , grid%n(3) - 1
+       do x = 2 , grid%n(1) - 1
           ! calculate the current contribution
-          vcur = val_yb(a,V,x,dy,z)
+          vcur = val_yb(grid,V,x,dy,z)
           ! Calculate the tolerance
           tol = max(abs(V(x,y,z) - vcur),tol)
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
@@ -252,8 +237,8 @@ contains
     end do
 
 !    ! y-corners
-!    call gs_corner(a,sor,V,      1,y,grid%n3,  1,dy,-1,tol)
-!    call gs_corner(a,sor,V,grid%n1,y,grid%n3, -1,dy,-1,tol)
+!    call gs_corner(grid,sor,V,      1,y,grid%n(3),  1,dy,-1,tol)
+!    call gs_corner(grid,sor,V,grid%n(1),y,grid%n(3), -1,dy,-1,tol)
 
   end subroutine gs_yb
 
@@ -264,8 +249,9 @@ contains
     integer, intent(in) :: z
     real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
     real(grid_p), intent(inout) :: tol
-    real(grid_p) :: vcur, a(3), val_r(3), sor(2)
+    real(grid_p) :: vcur, val_r(3), sor(2)
     integer :: x,y,dz
+
     if ( z == 1 ) then
        dz = 1 
     else
@@ -275,19 +261,14 @@ contains
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
-    a(1) = grid%ax
-    a(2) = grid%ay
-    a(3) = grid%az
-
 !    ! z-corners
-!    call gs_corner(a,sor,V,      1,1,z,  1,1,dz,tol)
-!    call gs_corner(a,sor,V,grid%n1,1,z, -1,1,dz,tol)
+!    call gs_corner(grid,sor,V,      1,1,z,  1,1,dz,tol)
+!    call gs_corner(grid,sor,V,grid%n(1),1,z, -1,1,dz,tol)
     
-    do y = 2 , grid%n2 - 1
-       do x = 2 , grid%n1 - 1
-          if ( in_constant(x,y,z) ) cycle
+    do y = 2 , grid%n(2) - 1
+       do x = 2 , grid%n(1) - 1
           ! calculate the current contribution
-          vcur = val_zb(a,V,x,y,dz)
+          vcur = val_zb(grid,V,x,y,dz)
           ! Calculate the tolerance
           tol = max(abs(V(x,y,z) - vcur),tol)
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
@@ -295,107 +276,120 @@ contains
     end do
 
 !    ! z-corners
-!    call gs_corner(a,sor,V,      1,grid%n2,z,  1,-1,dz,tol)
-!    call gs_corner(a,sor,V,grid%n1,grid%n2,z, -1,-1,dz,tol)
+!    call gs_corner(grid,sor,V,      1,grid%n(2),z,  1,-1,dz,tol)
+!    call gs_corner(grid,sor,V,grid%n(1),grid%n(2),z, -1,-1,dz,tol)
 
   end subroutine gs_zb
 
-  subroutine gs_corner(a,sor,V,x,y,z,dx,dy,dz,tol)
-    real(grid_p), intent(in) :: a(3), sor(2)
+  subroutine gs_corner(grid,sor,V,x,y,z,dx,dy,dz,tol)
+    type(mg_grid), intent(in) :: grid
+    real(grid_p), intent(in) :: sor(2)
     real(grid_p), intent(inout) :: V(:,:,:)
     integer, intent(in) :: x,y,z,dx,dy,dz
     real(grid_p), intent(inout) :: tol
     real(grid_p) :: vcur, val_r(3)
-    if ( is_constant(x,y,z) ) return
+    if ( is_constant(grid,x,y,z) ) return
     val_r(1) = val_rho(x+dx,y,z)
     val_r(2) = val_rho(x,y+dy,z)
     val_r(3) = val_rho(x,y,z+dz)
     val_r = val_r / sum(val_r)
     vcur = &
-         a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-         a(2) * ( V(x,y+dy,z) * val_r(2) ) + &
-         a(3) * ( V(x,y,z+dz) * val_r(3) )
+         grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
+         grid%a(2) * ( V(x,y+dy,z) * val_r(2) ) + &
+         grid%a(3) * ( V(x,y,z+dz) * val_r(3) )
     tol = max(abs(V(x,y,z) - vcur),tol)
     V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
   end subroutine gs_corner
 
-  pure function val(a,V,x,y,z) 
-    real(grid_p), intent(in) :: a(3), V(:,:,:)
+  pure function val(grid,V,x,y,z) 
+    type(mg_grid), intent(in) :: grid
+    real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: x,y,z
     real(grid_p) :: val, val_r(6)
 
-    val_r(1) = val_rho(x-1,y,z)
-    val_r(2) = val_rho(x+1,y,z)
-    val_r(3) = val_rho(x,y-1,z)
-    val_r(4) = val_rho(x,y+1,z)
-    val_r(5) = val_rho(x,y,z-1)
-    val_r(6) = val_rho(x,y,z+1)
+    ! default value must already be initialized
+    val = V(x,y,z)
+    if ( is_constant(grid,x,y,z) ) return
+    
+    val_r(1) = val_rho(grid,x-1,y,z)
+    val_r(2) = val_rho(grid,x+1,y,z)
+    val_r(3) = val_rho(grid,x,y-1,z)
+    val_r(4) = val_rho(grid,x,y+1,z)
+    val_r(5) = val_rho(grid,x,y,z-1)
+    val_r(6) = val_rho(grid,x,y,z+1)
     val_r = val_r / sum(val_r)
 
     val = &
-         a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
-         a(3) * ( V(x,y,z+1) * val_r(5) + V(x,y,z+1) * val_r(6) )
+         grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
+         grid%a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
+         grid%a(3) * ( V(x,y,z+1) * val_r(5) + V(x,y,z+1) * val_r(6) )
 
   end function val
 
-  pure function val_xb(a,V,dx,y,z) 
+  pure function val_xb(grid,V,dx,y,z) 
     ! calculates the contribution on the lower/upper x-bound
-    real(grid_p), intent(in) :: a(3), V(:,:,:)
+    type(mg_grid), intent(in) :: grid
+    real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: dx,y,z
     real(grid_p) :: val, val_r(5)
 
-    val_r(1) = val_rho(x+dx,y,z)
-    val_r(2) = val_rho(x,y-1,z)
-    val_r(3) = val_rho(x,y+1,z)
-    val_r(4) = val_rho(x,y,z-1)
-    val_r(5) = val_rho(x,y,z+1)
+    ! default value must already be initialized
+    val = V(x,y,z)
+    if ( is_constant(grid,x,y,z) ) return
+
+    val_r(1) = val_rho(grid,x+dx,y,z)
+    val_r(2) = val_rho(grid,x,y-1,z)
+    val_r(3) = val_rho(grid,x,y+1,z)
+    val_r(4) = val_rho(grid,x,y,z-1)
+    val_r(5) = val_rho(grid,x,y,z+1)
     val_r = val_r / sum(val_r)
 
     val = &
-         2._grid_p * a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-         a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
-         a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
+         2._grid_p * grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
+         grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
+         grid%a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
 
   end function val_xb
 
-  pure function val_yb(a,V,x,dy,z) 
+  pure function val_yb(grid,V,x,dy,z) 
+    type(mg_grid), intent(in) :: grid
     ! calculates the contribution on the lower/upper x-bound
-    real(grid_p), intent(in) :: a(3), V(:,:,:)
+    real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: x,dy,z
     real(grid_p) :: val, val_r(5)
 
-    val_r(1) = val_rho(x-1,y,z)
-    val_r(2) = val_rho(x+1,y,z)
-    val_r(3) = val_rho(x,y+dx,z)
-    val_r(4) = val_rho(x,y,z-1)
-    val_r(5) = val_rho(x,y,z+1)
+    val_r(1) = val_rho(grid,x-1,y,z)
+    val_r(2) = val_rho(grid,x+1,y,z)
+    val_r(3) = val_rho(grid,x,y+dx,z)
+    val_r(4) = val_rho(grid,x,y,z-1)
+    val_r(5) = val_rho(grid,x,y,z+1)
     val_r = val_r / sum(val_r)
 
     val = &
-         a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         2._grid_p * a(2) * ( V(x,y+dx,z) * val_r(3) ) + &
-         a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
+         grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
+         2._grid_p * grid%a(2) * ( V(x,y+dx,z) * val_r(3) ) + &
+         grid%a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
     
   end function val_yb
 
-  pure function val_zb(a,V,x,y,dz) 
-    real(grid_p), intent(in) :: a(3), V(:,:,:)
+  pure function val_zb(grid,V,x,y,dz) 
+    type(mg_grid), intent(in) :: grid
+    real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: x,y,dz
     real(grid_p) :: val, val_r(5)
 
-    val_r(1) = val_rho(x-1,y,z)
-    val_r(2) = val_rho(x+1,y,z)
-    val_r(3) = val_rho(x,y-1,z)
-    val_r(4) = val_rho(x,y+1,z)
-    val_r(5) = val_rho(x,y,z+dz)
+    val_r(1) = val_rho(grid,x-1,y,z)
+    val_r(2) = val_rho(grid,x+1,y,z)
+    val_r(3) = val_rho(grid,x,y-1,z)
+    val_r(4) = val_rho(grid,x,y+1,z)
+    val_r(5) = val_rho(grid,x,y,z+dz)
     val_r = val_r / sum(val_r)
 
     val = &
-         a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
-         2._grid_p * a(3) * ( V(x,y,z+dz) * val_r(5) )
+         grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
+         grid%a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
+         2._grid_p * grid%a(3) * ( V(x,y,z+dz) * val_r(5) )
 
-  end function val
+  end function val_zb
 
-end module m_gs
+end module m_gs_CDS
