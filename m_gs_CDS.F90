@@ -56,26 +56,9 @@ contains
        
        grid => grid%parent
 
-!       cycle
-!
-!       ! we decide whether we should move down or up in the V-cycle
-!       if ( grid%itt - old_itt > 10 .and. &
-!            associated(grid%child) ) then ! move down in V-cycle
-!          ! precontraction 
-!          call init_grid_child(grid%child)
-!          grid => grid%child
-!       else if ( grid%itt - old_itt > 10 ) then
-!          ! stay-put
-!       else 
-!          ! move up in V-shape
-!          ! prolongation
-!          call init_grid_parent(grid)
-!          grid => grid%parent
-!       end if
-
     end do
 
-  end subroutine mg_gs
+  end subroutine mg_gs_cds
 
   subroutine grid_solve(grid)
     type(mg_grid), intent(inout) :: grid
@@ -151,6 +134,7 @@ contains
     real(grid_p), intent(inout) :: tol
     real(grid_p) :: vcur, sor(2)
     integer :: dx,y,z
+
     if ( x == 1 ) then
        dx = 1 
     else

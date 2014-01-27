@@ -8,18 +8,22 @@ module t_mg
 
   type :: mg_grid
      ! the grid information
+     real(grid_p) :: offset(3) ! the offset of the placement of the local grid 
+     real(grid_p) :: cell(3,3) ! the cell for the local grid
      integer :: n(3) ! size in each direction
      real(grid_p) :: sor ! the SOR value
      real(grid_p) :: a(3) ! the pre-factors for the summation
      real(grid_p) :: tol ! the tolerance of the current grid
                          ! this allows different tolerances for different layer-grids
-     integer :: itt ! iterations needed to converge...
+     integer :: itt ! iterations currently processed
      integer :: layer ! the layer that this grid resides in
      real(grid_p), pointer :: V(:) => null() ! black/red update array
      real(grid_p), pointer :: g(:) => null() ! ghost arrays ( one long array for all bounds )
      real(grid_p), pointer :: g_s(:) => null() ! send ghost arrays ( one long array for all bounds )
      type(mg_grid), pointer :: parent => null()
      type(mg_grid), pointer :: child => null()
+
+     ! The constant valued boxes in this grid
      integer :: N_box
      type(mg_box), allocatable :: box(:)
   end type mg_grid
@@ -52,9 +56,9 @@ contains
     celll(3) = celll(3) / n3
 
     grid%layer = layer
-    grid%n1 = n1
-    grid%n2 = n2
-    grid%n3 = n3
+    grid%n(1) = n1
+    grid%n(2) = n2
+    grid%n(3) = n3
     grid%itt = 0
     if ( present(tol) ) then
        grid%tol = tol
@@ -68,9 +72,9 @@ contains
     grid%sor = 2._grid_p / (1._grid_p + 3.141592635_grid_p / max(n1,n2,n3) )
 
     tmp = 1._dp / ( 2._dp * sum(celll) ) 
-    grid%ax = celll(2) * celll(3) * tmp
-    grid%ay = celll(1) * celll(3) * tmp
-    grid%az = celll(1) * celll(2) * tmp
+    grid%a(1) = celll(2) * celll(3) * tmp
+    grid%a(2) = celll(1) * celll(3) * tmp
+    grid%a(3) = celll(1) * celll(2) * tmp
 
   end subroutine init_grid
 

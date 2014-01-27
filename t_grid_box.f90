@@ -5,7 +5,7 @@ module t_grid_box
   integer, parameter :: dp = selected_real_kind(p=15)
   integer, parameter :: grid_p = selected_real_kind(p=6)
 
-  type :: mg_box
+  type :: mg_box_
      sequence
      ! this contains the min/max indices for the constant region
      ! xmin/xmax
@@ -14,24 +14,21 @@ module t_grid_box
      integer :: place(2,3) = 0
      real(grid_p) :: val = 1._grid_p ! *MUST be above 1*
      logical :: constant = .false.
+  end type mg_box_
+
+  type :: mg_box
+     type(mg_box_), pointer :: box => null()
   end type mg_box
 
 contains
 
-  pure function in_box(box,x,y,z) result(in)
-    type(mg_box), intent(in) :: box
-    integer, intent(in) :: x,y,z
-    in = x <= grid%box(i)%box%place(1,1) .and. &
-         grid%box(i)%box%place(2,1) <= x .and. &
-         y <= grid%box(i)%box%place(1,2) .and. &
-         grid%box(i)%box%place(2,2) <= y .and. &
-         z <= grid%box(i)%box%place(1,3) .and. &
-         grid%box(i)%box%place(2,3) <= z
-  end function in_box
+  subroutine init_box(grid, box, llc, box_cell, val, constant)
+    type(mg_grid), intent(in) :: grid
+    type(mg_box), intent(inout) :: box
+    real(dp), intent(in) :: llc(3), box_cell(3,3)
+    real(grid_p), intent(in) :: val
+    logical, intent(in) :: constant
 
-
-  subroutine init_box(grid, box, cell, layer)
-    type(mg_grid), intent(inout) :: grid
     integer,  intent(in) :: n1, n2, n3
     real(grid_p), intent(in) :: tol
     real(dp), intent(in) :: cell(3,3)
@@ -41,7 +38,7 @@ contains
     integer :: i
 
     ! ensure it is empty
-    call delete_grid(grid)
+    call delete_box(box)
 
     ! create the ax, ay, az pre-factors for the 3D Poisson solver
     do i = 1 , 3
@@ -82,4 +79,23 @@ contains
     
   end subroutine init_box
 
-end module t_mg
+  subroutine delete_box(box)
+    type(mg_box), intent(inout) :: box
+    if ( associated(box%box) ) then
+       deallocate(box%box)
+       nullify(box%box)
+    end if
+  end subroutine delete_box
+
+  pure function in_box(box,x,y,z) result(in)
+    type(mg_box), intent(in) :: box
+    integer, intent(in) :: x,y,z
+    in = x <= box%box%place(1,1) .and. &
+         box%box%place(2,1) <= x .and. &
+         y <= box%box%place(1,2) .and. &
+         box%box%place(2,2) <= y .and. &
+         z <= box%box%place(1,3) .and. &
+         box%box%place(2,3) <= z
+  end function in_box
+
+end module t_grid_box
