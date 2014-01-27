@@ -1,6 +1,7 @@
 module t_mg
 
-  use t_grid_box
+  integer, parameter :: dp = selected_real_kind(p=15)
+  integer, parameter :: grid_p = selected_real_kind(p=6)
 
   implicit none
 
@@ -10,40 +11,56 @@ module t_mg
      ! the grid information
      real(grid_p) :: offset(3) ! the offset of the placement of the local grid 
      real(grid_p) :: cell(3,3) ! the cell for the local grid
-     integer :: n(3) ! size in each direction
-     real(grid_p) :: sor ! the SOR value
+     real(grid_p) :: dL(3,3) ! the cell stepping
+     integer      :: n(3) ! size in each direction
+     real(grid_p) :: sor  ! the SOR value
      real(grid_p) :: a(3) ! the pre-factors for the summation
-     real(grid_p) :: tol ! the tolerance of the current grid
-                         ! this allows different tolerances for different layer-grids
-     integer :: itt ! iterations currently processed
-     integer :: layer ! the layer that this grid resides in
-     real(grid_p), pointer :: V(:) => null() ! black/red update array
-     real(grid_p), pointer :: g(:) => null() ! ghost arrays ( one long array for all bounds )
-     real(grid_p), pointer :: g_s(:) => null() ! send ghost arrays ( one long array for all bounds )
+     real(grid_p) :: tol  ! the tolerance of the current grid
+                          ! this allows different tolerances for different layer-grids
+     integer :: itt       ! iterations currently processed
+     integer :: layer     ! the layer that this grid resides in
+     real(grid_p),  pointer :: V  (:) => null() ! update array
+     real(grid_p),  pointer :: g  (:) => null() ! ghost arrays ( one long array for all bounds )
+     real(grid_p),  pointer :: g_s(:) => null() ! send ghost arrays ( one long array for all bounds )
      type(mg_grid), pointer :: parent => null()
      type(mg_grid), pointer :: child => null()
 
      ! The constant valued boxes in this grid
      integer :: N_box
-     type(mg_box), allocatable :: box(:)
+     type(mg_box), pointer :: box(:) => null()
   end type mg_grid
+
+  type :: mg_box
+     sequence
+     ! this contains the min/max indices for the constant region
+     ! xmin/xmax
+     ! ymin/ymax
+     ! zmin/zmax
+     integer :: place(2,3) = 0
+     real(grid_p) :: val = 1._grid_p ! *MUST be above 1*
+     logical :: constant = .false.
+  end type mg_box
 
 contains
 
-  subroutine init_grid(grid, n1, n2, n3, tol, cell, layer)
+  subroutine init_grid(grid, n, cell, tol, layer, boxes, offset, dL, sor)
     type(mg_grid), intent(inout) :: grid
-    integer,  intent(in) :: n1, n2, n3
-    real(grid_p), intent(in) :: tol
-    real(dp), intent(in) :: cell(3,3)
-    integer,  intent(in) :: layer
-    real(dp), intent(in) :: celll(3)
-    real(dp) :: tmp
-    integer :: i
+    integer,       intent(in)    :: n(3)
+    real(grid_p),  intent(in)    :: tol
+    real(dp),      intent(in)    :: cell(3,3)
+    integer,       intent(in)    :: layer
+    integer,       intent(in)    :: boxes
+    real(dp),      intent(in), optional :: offset(3), dL(3,3)
+    real(grid_p),  intent(in), optional :: sor
+
+    real(dp) :: celll(3), tmp
+    integer  :: i
 
     ! ensure it is empty
     call delete_grid(grid)
 
     ! create the ax, ay, az pre-factors for the 3D Poisson solver
+    ! note that cell is the cell-size for the total cell
     do i = 1 , 3
        celll(i) = &
             cell(1,i) ** 2 + &
@@ -51,37 +68,160 @@ contains
             cell(3,i) ** 2
     end do
 
-    celll(1) = celll(1) / n1
-    celll(2) = celll(2) / n2
-    celll(3) = celll(3) / n3
+    celll(1) = celll(1) / n(1)
+    celll(2) = celll(2) / n(2)
+    celll(3) = celll(3) / n(3)
 
-    grid%layer = layer
-    grid%n(1) = n1
-    grid%n(2) = n2
-    grid%n(3) = n3
+    if ( present(offset) .neqv. present(dL) ) then
+       stop 'Error in option parsing'
+    end if
+
+    ! set the values for the grid...
+    grid%n = n
+    grid%layer  = layer
+    grid%offset = 0._grid_p
+    if ( present(offset) ) grid%offset = offset
+
+    do i = 1 , 3
+       grid%dL(:,i) = cell(:,i) / n(i)
+    end do
+    if ( present(dL) ) grid%dL = dL
+
+    ! re-construct the actual cell size for this processor
+    do i = 1 , 3
+       grid%cell(:,i) = dL(:,i) * n(i)
+    end do
+       
     grid%itt = 0
     if ( present(tol) ) then
        grid%tol = tol
     else if ( associated(grid%parent) ) then
        grid%tol = grid%parent%tol
     else
-       stop 
+       stop 'Tolerance not set'
     end if
 
     ! the SOR parameter
-    grid%sor = 2._grid_p / (1._grid_p + 3.141592635_grid_p / max(n1,n2,n3) )
+    grid%sor = 2._grid_p / (1._grid_p + 3.1415926535897_grid_p / maxval(n) )
+    if ( present(sor) ) grid%sor = sor
 
     tmp = 1._dp / ( 2._dp * sum(celll) ) 
     grid%a(1) = celll(2) * celll(3) * tmp
     grid%a(2) = celll(1) * celll(3) * tmp
     grid%a(3) = celll(1) * celll(2) * tmp
 
+    ! pre-allocate room for the boxes
+    grid%N_box = boxes
+    allocate(grid%box(boxes))
+    
   end subroutine init_grid
 
-  subroutine init_grid_child(grid)
+  recursive subroutine grid_add_box(grid, llc, box_cell, val, constant)
+    type(mg_grid), intent(in) :: grid
+    real(dp), intent(in) :: llc(3), box_cell(3,3)
+    real(grid_p), intent(in) :: val
+    logical, intent(in) :: constant
+    
+    real(dp) :: dz(3), dyz(3), xyz(3), urc(3)
+    integer :: i,x,y,z
+    type(mg_box), pointer :: box
+    
+    if ( grid%N_box == 0 ) stop 'No boxes'
+
+    nullify(box)
+    do i = 1 , grid%N_box
+       if ( .not. all(grid%box(i)%place == 0) ) cycle
+       box => grid%box(i)
+       exit
+    end do
+
+    if ( .not. associated(box) ) then
+       stop 'No boxes available'
+    end if
+
+    ! ensure it is empty
+    call delete_box(box)
+
+    box%val = val
+    box%constant = constant
+
+    ! initialize
+    box%place(1,:) = huge(0)
+    box%place(2,:) = 0
+
+    urc = llc + box_cell(:,1) + box_cell(:,2) + box_cell(:,3)
+
+    ! TODO currently this does not work with skewed axis
+
+    do z = 0 , grid%n(3) - 1
+    dz  = dL(:,3) * z + grid%offset ! we immediately add the offset
+    do y = 0 , grid%n(2) - 1
+    dyz = dL(:,2) * y + dz
+    do x = 0 , grid%n(1) - 1
+       xyz = dL(:,1) * x + dyz
+       if ( all(llc <= xyz) ) then
+          ! check that the point also
+          ! lies inside on the right borders
+          if ( all(xyz <= urc) ) then
+             call insert_point(box%place,x,y,z)
+          end if
+       end if
+    end do
+    end do
+    end do
+
+    ! if not present, simply delete it...
+    if ( all(box%place(1,:) == huge(0)) .and. &
+         all(box%place(2,:) == 0) ) then
+       call delete_box(box)
+    else if ( associated(grid%child) ) then
+       ! add the box to the child grid
+       call grid_add_box(grid%child,llc,box_cell,val,constant)
+    end if
+
+  contains
+
+    subroutine insert_point(place,x,y,z)
+      integer, intent(inout) :: place(2,3)
+      integer, intent(in) :: x,y,z
+      if ( x < place(1,1) ) then
+         place(1,1) = x + 1
+      else if ( place(2,1) <= x ) then
+         place(2,1) = x + 1
+      end if
+      if ( y < place(1,2) ) then
+         place(1,2) = y + 1
+      else if ( place(2,2) <= y ) then
+         place(2,2) = y + 1
+      end if
+      if ( z < place(1,3) ) then
+         place(1,3) = z + 1
+      else if ( place(2,3) <= z ) then
+         place(2,3) = z + 1
+      end if
+    end subroutine insert_point
+
+  end subroutine grid_add_box
+
+  subroutine grid_setup(grid)
     type(mg_grid), intent(inout) :: grid
-    < do the precontraction >
-  end subroutine init_grid_child
+    integer :: x,y,z
+    real(grid_p), pointer :: V(:,:,:)
+
+    call from1dto3d(grid%n,grid%V,V)
+    
+    ! set all boxes to their values if constant
+    do z = 1 , grid%n(3)
+    do y = 1 , grid%n(2)
+    do x = 1 , grid%n(1)
+       if ( is_constant(grid,x,y,z) ) then
+          V(x,y,z) = val_rho(grid,x,y,z)
+       end if
+    end do
+    end do
+    end do
+
+  end subroutine grid_setup
 
   subroutine init_grid_parent(grid)
     type(mg_grid), intent(inout) :: grid
@@ -117,6 +257,10 @@ contains
        nullify(grid%child)
     end if
 
+    if ( grid%N_box > 0 ) then
+       deallocate(grid%box)
+       nullify(grid%box)
+    end if
     call grid_hold_back(grid)
 
   end subroutine delete_grid
@@ -139,9 +283,9 @@ contains
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%child) ) return
 
-    call from1dto3d(grid%n1 ,grid%n2 ,grid%n3 ,grid%V ,V )
+    call from1dto3d(grid%n ,grid%V ,V )
     child => grid%child
-    call from1dto3d(child%n1,child%n2,child%n3,child%V,Vc)
+    call from1dto3d(child%n,child%V,Vc)
 
     ! initialize the child
     Vc = 0._grid_p
@@ -196,6 +340,9 @@ contains
 
     ! we still need the border...
 
+    ! re-instantiate the constant fields
+    call grid_setup(child)
+
   end subroutine grid_restriction
 
   subroutine grid_prolongation(grid)
@@ -215,9 +362,9 @@ contains
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%parent) ) return
 
-    call from1dto3d(grid%n1  ,grid%n2  ,grid%n3  ,grid%V  ,V )
+    call from1dto3d(grid%n  ,grid%V  ,V )
     parent => grid%parent
-    call from1dto3d(parent%n1,parent%n2,parent%n3,parent%V,Vp)
+    call from1dto3d(parent%n,parent%V,Vp)
 
     ! initialize the parent
     Vp = 0._grid_p
@@ -275,6 +422,9 @@ contains
 
     ! we still need the border
 
+    ! re-instantiate the constant fields
+    call grid_setup(parent)
+
   end subroutine grid_prolongation
 
   function is_constant(grid,x,y,z) result(is)
@@ -284,11 +434,10 @@ contains
     integer :: i
     
     do i = 1 , grid%N_box
-       if ( grid%box(i)%box%constant ) then
-          if ( in_box(grid%box(i)%box,x,y,z) ) then
-             is = .true.
-             return
-          end if
+       if ( .not. grid%box(i)%constant ) cycle
+       if ( in_box(grid%box(i),x,y,z) ) then
+          is = .true.
+          return
        end if
     end do
     is = .false.
@@ -299,28 +448,46 @@ contains
     type(mg_grid), intent(in) :: grid
     integer, intent(in) :: x,y,z
     real(grid_p) :: val
-    
+
     integer :: i
     
     do i = 1 , grid%N_box
-       if ( grid%box(i)%box%constant ) then
-          if ( in_box(grid%box(i)%box,x,y,z) )then
-             val = grid%box(i)%box%val
-             return
-          end if
+       if ( in_box(grid%box(i),x,y,z) )then
+          val = grid%box(i)%val
+          return
        end if
     end do
+
     ! all values are defaulted to 1
     val = 1._grid_p
 
   end function val_rho
 
+  ! box-routines
+  subroutine delete_box(box)
+    type(mg_box), intent(inout) :: box
+    box%place = 0
+    box%val = 1._grid_p
+    box%constant = .false.
+  end subroutine delete_box
+
+  pure function in_box(box,x,y,z) result(in)
+    type(mg_box), intent(in) :: box
+    integer, intent(in) :: x,y,z
+    in = x <= box%place(1,1) .and. &
+         box%place(2,1) <= x .and. &
+         y <= box%place(1,2) .and. &
+         box%place(2,2) <= y .and. &
+         z <= box%place(1,3) .and. &
+         box%place(2,3) <= z
+  end function in_box
+
 end module t_mg
 
-subroutine from1dto3d(n1,n2,n3,V1D,V3D)
+subroutine from1dto3d(n,V1D,V3D)
   use t_mg, only : grid_p
-  integer,   intent(in) :: n1, n2, n3
-  real(grid_p),  target :: V1D(n1,n2,n3)
+  integer,   intent(in) :: n(3)
+  real(grid_p),  target :: V1D(n(1),n(2),n(3))
   real(grid_p), pointer :: V3D(:,:,:)
   V3D => V1D
 end subroutine from1dto3d
