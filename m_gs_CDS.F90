@@ -39,6 +39,7 @@ contains
 
        old_itt = grid%itt
 
+       ! solve the grid
        call grid_solve(grid)
 
        ! bring back data
@@ -51,6 +52,7 @@ contains
           call grid_hold_back(grid)
        end if
 
+       ! print out number of iterations used on that cycle
        write(*,'(2(a,i0),a)') &
             'Completed (',grid%layer,') cycle in ',grid%itt-old_itt,' cycles'
        
@@ -67,7 +69,7 @@ contains
 
     tol = grid%tol + 1._grid_p
 
-    call from1Dto3D(grid%n(1),grid%n(2),grid%n(3),grid%V, V)
+    call from1Dto3D(grid%n,grid%V, V)
 
     do while ( tol > grid%tol ) 
 
@@ -89,7 +91,7 @@ contains
   
   subroutine gs(grid,V,tol)
     type(mg_grid), intent(inout) :: grid
-    real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
+    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
     real(grid_p), intent(inout) :: tol
     real(grid_p) :: vcur, a(3), sor(2)
     integer :: x,y,z
@@ -113,7 +115,7 @@ contains
 
   subroutine gs_bound(grid,V,tol)
     type(mg_grid), intent(inout) :: grid
-    real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
+    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
     real(grid_p), intent(inout) :: tol
 
     call gs_xb(grid,1,V,tol)
@@ -130,7 +132,7 @@ contains
     ! lower/upper x-bound
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: x
-    real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
+    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
     real(grid_p), intent(inout) :: tol
     real(grid_p) :: vcur, sor(2)
     integer :: dx,y,z
@@ -156,7 +158,7 @@ contains
     do z = 2 , grid%n(3) - 1
        do y = 2 , grid%n(2) - 1
           ! calculate the current contribution
-          vcur = val_xb(grid,V,dx,y,z)
+          vcur = val_xb(grid,V,x,y,z,dx)
           ! Calculate the tolerance
           tol = max(abs(V(x,y,z) - vcur),tol)
           ! we implement the SOR-algorithm
@@ -193,7 +195,7 @@ contains
     ! lower/upper y-bound
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: y
-    real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
+    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
     real(grid_p), intent(inout) :: tol
     real(grid_p) :: vcur, sor(2)
     integer :: x,dy,z
@@ -213,7 +215,7 @@ contains
     do z = 2 , grid%n(3) - 1
        do x = 2 , grid%n(1) - 1
           ! calculate the current contribution
-          vcur = val_yb(grid,V,x,dy,z)
+          vcur = val_yb(grid,V,x,y,z,dy)
           ! Calculate the tolerance
           tol = max(abs(V(x,y,z) - vcur),tol)
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
@@ -231,7 +233,7 @@ contains
     ! lower/upper z-bound
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: z
-    real(grid_p), intent(inout) :: V(grid%n1,grid%n2,grid%n3)
+    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
     real(grid_p), intent(inout) :: tol
     real(grid_p) :: vcur, val_r(3), sor(2)
     integer :: x,y,dz
@@ -252,7 +254,7 @@ contains
     do y = 2 , grid%n(2) - 1
        do x = 2 , grid%n(1) - 1
           ! calculate the current contribution
-          vcur = val_zb(grid,V,x,y,dz)
+          vcur = val_zb(grid,V,x,y,z,dz)
           ! Calculate the tolerance
           tol = max(abs(V(x,y,z) - vcur),tol)
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
@@ -273,9 +275,9 @@ contains
     real(grid_p), intent(inout) :: tol
     real(grid_p) :: vcur, val_r(3)
     if ( is_constant(grid,x,y,z) ) return
-    val_r(1) = val_rho(x+dx,y,z)
-    val_r(2) = val_rho(x,y+dy,z)
-    val_r(3) = val_rho(x,y,z+dz)
+    val_r(1) = val_rho(grid,x+dx,y,z)
+    val_r(2) = val_rho(grid,x,y+dy,z)
+    val_r(3) = val_rho(grid,x,y,z+dz)
     val_r = val_r / sum(val_r)
     vcur = &
          grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
@@ -285,7 +287,7 @@ contains
     V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
   end subroutine gs_corner
 
-  pure function val(grid,V,x,y,z) 
+  pure function val(grid,V,x,y,z)
     type(mg_grid), intent(in) :: grid
     real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: x,y,z
@@ -310,11 +312,11 @@ contains
 
   end function val
 
-  pure function val_xb(grid,V,dx,y,z) 
+  pure function val_xb(grid,V,x,y,z,dx) result(val)
     ! calculates the contribution on the lower/upper x-bound
     type(mg_grid), intent(in) :: grid
     real(grid_p), intent(in) :: V(:,:,:)
-    integer, intent(in) :: dx,y,z
+    integer, intent(in) :: x,y,z,dx
     real(grid_p) :: val, val_r(5)
 
     ! default value must already be initialized
@@ -335,31 +337,31 @@ contains
 
   end function val_xb
 
-  pure function val_yb(grid,V,x,dy,z) 
+  pure function val_yb(grid,V,x,y,z,dy) result(val)
     type(mg_grid), intent(in) :: grid
     ! calculates the contribution on the lower/upper x-bound
     real(grid_p), intent(in) :: V(:,:,:)
-    integer, intent(in) :: x,dy,z
+    integer, intent(in) :: x,y,z,dy
     real(grid_p) :: val, val_r(5)
 
     val_r(1) = val_rho(grid,x-1,y,z)
     val_r(2) = val_rho(grid,x+1,y,z)
-    val_r(3) = val_rho(grid,x,y+dx,z)
+    val_r(3) = val_rho(grid,x,y+dy,z)
     val_r(4) = val_rho(grid,x,y,z-1)
     val_r(5) = val_rho(grid,x,y,z+1)
     val_r = val_r / sum(val_r)
 
     val = &
          grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         2._grid_p * grid%a(2) * ( V(x,y+dx,z) * val_r(3) ) + &
+         2._grid_p * grid%a(2) * ( V(x,y+dy,z) * val_r(3) ) + &
          grid%a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
     
   end function val_yb
 
-  pure function val_zb(grid,V,x,y,dz) 
+  pure function val_zb(grid,V,x,y,z,dz) result(val)
     type(mg_grid), intent(in) :: grid
     real(grid_p), intent(in) :: V(:,:,:)
-    integer, intent(in) :: x,y,dz
+    integer, intent(in) :: x,y,z,dz
     real(grid_p) :: val, val_r(5)
 
     val_r(1) = val_rho(grid,x-1,y,z)

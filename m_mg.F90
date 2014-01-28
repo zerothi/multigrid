@@ -1,8 +1,8 @@
 module m_mg
 
   use t_mg
-  use m_gs
-  use m_gs_br
+  use m_gs_CDS
+  !use m_gs_br
 
   implicit none
 

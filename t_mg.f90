@@ -1,9 +1,9 @@
 module t_mg
 
+  implicit none
+
   integer, parameter :: dp = selected_real_kind(p=15)
   integer, parameter :: grid_p = selected_real_kind(p=6)
-
-  implicit none
 
   ! a module to sustain a "simple" multi-grid solver using the 
 
@@ -43,13 +43,13 @@ module t_mg
 
 contains
 
-  subroutine init_grid(grid, n, cell, tol, layer, boxes, offset, dL, sor)
+  subroutine init_grid(grid, n, cell, layer, boxes, tol, offset, dL, sor)
     type(mg_grid), intent(inout) :: grid
     integer,       intent(in)    :: n(3)
-    real(grid_p),  intent(in)    :: tol
     real(dp),      intent(in)    :: cell(3,3)
     integer,       intent(in)    :: layer
     integer,       intent(in)    :: boxes
+    real(grid_p),  intent(in), optional :: tol
     real(dp),      intent(in), optional :: offset(3), dL(3,3)
     real(grid_p),  intent(in), optional :: sor
 
@@ -89,7 +89,7 @@ contains
 
     ! re-construct the actual cell size for this processor
     do i = 1 , 3
-       grid%cell(:,i) = dL(:,i) * n(i)
+       grid%cell(:,i) = grid%dL(:,i) * n(i)
     end do
        
     grid%itt = 0
@@ -154,11 +154,11 @@ contains
     ! TODO currently this does not work with skewed axis
 
     do z = 0 , grid%n(3) - 1
-    dz  = dL(:,3) * z + grid%offset ! we immediately add the offset
+    dz  = grid%dL(:,3) * z + grid%offset ! we immediately add the offset
     do y = 0 , grid%n(2) - 1
-    dyz = dL(:,2) * y + dz
+    dyz = grid%dL(:,2) * y + dz
     do x = 0 , grid%n(1) - 1
-       xyz = dL(:,1) * x + dyz
+       xyz = grid%dL(:,1) * x + dyz
        if ( all(llc <= xyz) ) then
           ! check that the point also
           ! lies inside on the right borders
@@ -223,11 +223,6 @@ contains
 
   end subroutine grid_setup
 
-  subroutine init_grid_parent(grid)
-    type(mg_grid), intent(inout) :: grid
-    < do the prolongation >
-  end subroutine init_grid_parent
-
   subroutine grid_hold_back(grid)
     type(mg_grid), intent(inout) :: grid
     
@@ -242,9 +237,9 @@ contains
   subroutine grid_bring_back(grid)
     type(mg_grid), intent(inout) :: grid
     
-    allocate(grid%V(n1*n2*n3))
-    allocate(grid%g(n1*2+n2*2+n3*2))
-    allocate(grid%g_s(n1*2+n2*2+n3*2))
+    allocate(grid%V(grid%n(1)*grid%n(2)*grid%n(3)))
+    allocate(grid%g(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
+    allocate(grid%g_s(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
 
   end subroutine grid_bring_back
 
@@ -268,8 +263,6 @@ contains
   subroutine grid_restriction(grid)
     type(mg_grid), intent(inout) :: grid
 
-    type(mg_grid), intent(inout), target :: grid
-
     real(grid_p),  pointer :: V(:,:,:), Vc(:,:,:)
     type(mg_grid), pointer :: child
 
@@ -292,11 +285,11 @@ contains
 
     ! we employ full-weighting
 
-    do z = 2 , grid%n3 - 1 , 2
+    do z = 2 , grid%n(3) - 1 , 2
     pz = z / 2 
-    do y = 2 , grid%n2 - 1 , 2
+    do y = 2 , grid%n(2) - 1 , 2
     py = y / 2
-    do x = 2 , grid%n1 - 1 , 2
+    do x = 2 , grid%n(1) - 1 , 2
        px = x / 2
 
        ! corners
@@ -369,11 +362,11 @@ contains
     ! initialize the parent
     Vp = 0._grid_p
 
-    do z = 1 , grid%n3
+    do z = 1 , grid%n(3)
     pz = 2 * z
-    do y = 1 , grid%n2
+    do y = 1 , grid%n(2)
     py = 2 * y
-    do x = 1 , grid%n1
+    do x = 1 , grid%n(1)
 
        px = 2 * x
 
@@ -427,10 +420,10 @@ contains
 
   end subroutine grid_prolongation
 
-  function is_constant(grid,x,y,z) result(is)
+  pure function is_constant(grid,x,y,z) result(is)
     type(mg_grid), intent(in) :: grid
     integer, intent(in) :: x,y,z
-    
+    logical :: is
     integer :: i
     
     do i = 1 , grid%N_box
@@ -444,7 +437,7 @@ contains
 
   end function is_constant
 
-  function val_rho(grid,x,y,z) result(val)
+  pure function val_rho(grid,x,y,z) result(val)
     type(mg_grid), intent(in) :: grid
     integer, intent(in) :: x,y,z
     real(grid_p) :: val
@@ -474,6 +467,7 @@ contains
   pure function in_box(box,x,y,z) result(in)
     type(mg_box), intent(in) :: box
     integer, intent(in) :: x,y,z
+    logical :: in
     in = x <= box%place(1,1) .and. &
          box%place(2,1) <= x .and. &
          y <= box%place(1,2) .and. &
