@@ -29,7 +29,7 @@ $(LIB_NAME): $(OBJS)
 
 clean:
 	rm -f $(LIB_NAME) $(OBJS) $(OBJS:.o=.mod) $(OBJS:.o=.MOD)
-	(cd test ; $(MAKE) clean)
+	@if [ -d test ] ; then (cd test ; $(MAKE) clean) ; fi
 
 # DO NOT DELETE THIS LINE - used by make depend
 m_cube.o: t_mg.o
