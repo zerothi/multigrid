@@ -14,7 +14,7 @@ module m_gs_CDS
 contains
 
   subroutine mg_gs_cds(top_grid)
-    type(mg_grid), pointer :: top_grid
+    type(mg_grid), target :: top_grid
     type(mg_grid), pointer :: grid
     integer :: old_itt
     

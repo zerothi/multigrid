@@ -6,7 +6,7 @@ module m_mg
 
   implicit none
 
-  integer :: method
+  integer :: method = MG_METHOD_GS_TEMPORAL_CDS
 
   ! the top multi-grid type
   type(mg_grid), target :: top
@@ -43,9 +43,9 @@ contains
     nullify(grid,tmp_grid)
 
     ! solve the system
-    if ( method == GS_TEMPORAL ) then
-       call mg_gs(top)
-    else if ( method == GS_BLACK_RED ) then
+    if ( method == MG_METHOD_GS_TEMPORAL_CDS ) then
+       call mg_gs_cds(top)
+    !else if ( method == GS_BLACK_RED ) then
        !call mg_gs_br(top)
     end if
     
@@ -59,9 +59,9 @@ contains
     subroutine new_grid_size(grid,nn1,nn2,nn3,N)
       type(mg_grid), intent(in) :: grid
       integer, intent(out) :: nn1,nn2,nn3,N
-      nn1 = grid%n1 * N_frac
-      nn2 = grid%n2 * N_frac
-      nn3 = grid%n3 * N_frac
+      nn1 = grid%n(1) * N_frac
+      nn2 = grid%n(2) * N_frac
+      nn3 = grid%n(3) * N_frac
       N = nn1 * nn2 * nn3
     end subroutine new_grid_size
 
