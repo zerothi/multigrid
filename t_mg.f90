@@ -9,9 +9,9 @@ module t_mg
 
   type :: mg_grid
      ! the grid information
-     real(grid_p) :: offset(3) ! the offset of the placement of the local grid 
-     real(grid_p) :: cell(3,3) ! the cell for the local grid
-     real(grid_p) :: dL(3,3) ! the cell stepping
+     real(dp)     :: offset(3) ! the offset of the placement of the local grid 
+     real(dp)     :: cell(3,3) ! the cell for the local grid
+     real(dp)     :: dL(3,3) ! the cell stepping
      integer      :: n(3) ! size in each direction
      real(grid_p) :: sor  ! the SOR value
      real(grid_p) :: a(3) ! the pre-factors for the summation
@@ -43,14 +43,14 @@ module t_mg
 
 contains
 
-  subroutine init_grid(grid, n, cell, layer, boxes, tol, offset, dL, sor)
+  subroutine init_grid(grid, n, cell, layer, boxes, tol, offset, sor)
     type(mg_grid), intent(inout) :: grid
     integer,       intent(in)    :: n(3)
     real(dp),      intent(in)    :: cell(3,3)
     integer,       intent(in)    :: layer
     integer,       intent(in)    :: boxes
     real(grid_p),  intent(in), optional :: tol
-    real(dp),      intent(in), optional :: offset(3), dL(3,3)
+    real(dp),      intent(in), optional :: offset(3)
     real(grid_p),  intent(in), optional :: sor
 
     real(dp) :: celll(3), tmp
@@ -62,34 +62,28 @@ contains
     ! create the ax, ay, az pre-factors for the 3D Poisson solver
     ! note that cell is the cell-size for the total cell
     do i = 1 , 3
+       ! We need to set the grid size according to the algorithm 
+       ! for proper grids below
+       if ( mod(grid%n(i),2) /= 1 ) then
+          grid%n(i) = grid%n(i) - 1
+       end if
+
        celll(i) = &
             cell(1,i) ** 2 + &
             cell(2,i) ** 2 + &
             cell(3,i) ** 2
+       celll(i) = celll(i) / grid%n(i)
+       grid%dL(:,i) = cell(:,i) / grid%n(i)
     end do
 
-    celll(1) = celll(1) / n(1)
-    celll(2) = celll(2) / n(2)
-    celll(3) = celll(3) / n(3)
-
-    if ( present(offset) .neqv. present(dL) ) then
-       stop 'Error in option parsing'
-    end if
-
     ! set the values for the grid...
-    grid%n = n
     grid%layer  = layer
     grid%offset = 0._grid_p
     if ( present(offset) ) grid%offset = offset
 
-    do i = 1 , 3
-       grid%dL(:,i) = cell(:,i) / n(i)
-    end do
-    if ( present(dL) ) grid%dL = dL
-
     ! re-construct the actual cell size for this processor
     do i = 1 , 3
-       grid%cell(:,i) = grid%dL(:,i) * n(i)
+       grid%cell(:,i) = grid%dL(:,i) * grid%n(i)
     end do
        
     grid%itt = 0
@@ -102,7 +96,7 @@ contains
     end if
 
     ! the SOR parameter
-    grid%sor = 2._grid_p / (1._grid_p + 3.1415926535897_grid_p / maxval(n) )
+    grid%sor = 2._grid_p / (1._grid_p + 3.1415926535897_grid_p / maxval(grid%n) )
     if ( present(sor) ) grid%sor = sor
 
     tmp = 1._dp / ( 2._dp * sum(celll) ) 
@@ -113,9 +107,24 @@ contains
     ! pre-allocate room for the boxes
     grid%N_box = boxes
     allocate(grid%box(boxes))
-    
+
   end subroutine init_grid
 
+  subroutine new_grid_size(grid,n)
+    type(mg_grid), intent(in) :: grid
+    integer, intent(out) :: n(3)
+    integer :: i
+    
+    do i = 1 , 3
+       n(i) = (grid%n(i) + 1) / 2
+       if ( n(i) < 7 ) then
+          n(:) = 0
+          return
+       end if
+    end do
+
+  end subroutine new_grid_size
+  
   recursive subroutine grid_add_box(grid, llc, box_cell, val, constant)
     type(mg_grid), intent(in) :: grid
     real(dp), intent(in) :: llc(3), box_cell(3,3)

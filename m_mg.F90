@@ -13,22 +13,20 @@ module m_mg
 
 contains
 
-  subroutine solve_MultiGrid_poison()
+  subroutine solve_MultiGrid_poison(top)
 
+    type(mg_grid), pointer :: top
+
+    ! local variables
     type(mg_grid), pointer :: grid, tmp_grid
-
-    real(grid_p) :: N_frac
-    integer :: nn1, nn2, nn3
+    integer :: N, nn(3)
 
     !< initialize communication scheme &
     !     each grid has the same neighbours and as such we dont &
     !     need separate schemes for each grid >
 
-    ! This estimates the needed number of grids
-    N_frac = log(2._grid_p) / 2._grid_p
+    call new_grid_size(top,nn,N)
 
-    call init_grid(top,n1,n2,n3)
-    call new_grid_size(top,nn1,nn2,nn3,N)
     ! create all the grids
     grid => top
     do while ( N > 200 ) 
@@ -36,9 +34,11 @@ contains
        allocate(tmp_grid)
        grid%child => tmp_grid
        tmp_grid%parent => grid
+       call init_grid(tmp_grid,nn, &
+            grid%cell, grid%layer+1, grid%N_box, &
+            grid%tol, grid%offset)
        grid => tmp_grid
-       call init_grid(grid,nn1,nn2,nn3)
-       call new_grid_size(grid,nn1,nn2,nn3,N)
+       call new_grid_size(grid,nn,N)
     end do
     nullify(grid,tmp_grid)
 
@@ -56,13 +56,22 @@ contains
 
   contains
 
-    subroutine new_grid_size(grid,nn1,nn2,nn3,N)
+    subroutine new_grid_size(grid,n,NN)
       type(mg_grid), intent(in) :: grid
-      integer, intent(out) :: nn1,nn2,nn3,N
-      nn1 = grid%n(1) * N_frac
-      nn2 = grid%n(2) * N_frac
-      nn3 = grid%n(3) * N_frac
-      N = nn1 * nn2 * nn3
+      integer, intent(out) :: n(3), NN
+      integer :: i
+      
+      do i = 1 , 3
+         n(i) = (grid%n(i) + 1) / 2
+         if ( n(i) < 7 ) then
+            n = 0
+            NN = 0
+            return
+         end if
+      end do
+
+      NN = n(1) * n(2) * n(3)
+
     end subroutine new_grid_size
 
   end subroutine solve_MultiGrid_poison
