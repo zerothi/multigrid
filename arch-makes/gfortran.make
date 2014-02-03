@@ -9,6 +9,8 @@ FFLAGS=-O3 -m64 -fPIC -fno-second-underscore -ftree-vectorize -fexpensive-optimi
 	-fipa-pure-const -foptimize-sibling-calls -fipa-cp \
 	$(INC_PATH)
 
+FFLAGS = -g -O0
+
 #FFLAGS += -Wunused
 
 ARFLAGS = cru

@@ -26,7 +26,7 @@ module t_mg
      type(mg_grid), pointer :: child => null()
 
      ! The constant valued boxes in this grid
-     integer :: N_box
+     integer :: N_box = 0
      type(mg_box), pointer :: box(:) => null()
   end type mg_grid
 
@@ -61,6 +61,7 @@ contains
 
     ! create the ax, ay, az pre-factors for the 3D Poisson solver
     ! note that cell is the cell-size for the total cell
+    grid%n = n
     do i = 1 , 3
        ! We need to set the grid size according to the algorithm 
        ! for proper grids below
@@ -106,27 +107,58 @@ contains
 
     ! pre-allocate room for the boxes
     grid%N_box = boxes
-    allocate(grid%box(boxes))
+    if ( boxes > 0 ) then
+       allocate(grid%box(boxes))
+    end if
 
   end subroutine init_grid
 
-  subroutine new_grid_size(grid,n)
-    type(mg_grid), intent(in) :: grid
-    integer, intent(out) :: n(3)
-    integer :: i
+  subroutine init_grid_children_half(top)
+    type(mg_grid), intent(inout), target :: top
+    integer :: n(3)
+    type(mg_grid), pointer :: grid, tmp_grid
     
-    do i = 1 , 3
-       n(i) = (grid%n(i) + 1) / 2
-       if ( n(i) < 7 ) then
-          n(:) = 0
-          return
-       end if
-    end do
+    ! we will now create all the children according to the
+    ! standard algorithms
 
-  end subroutine new_grid_size
-  
+    call new_grid_size(top,n)
+
+    ! create all the grids
+    grid => top
+    do while ( all(n /= 0) )
+       nullify(tmp_grid)
+       allocate(tmp_grid)
+       grid%child => tmp_grid
+       tmp_grid%parent => grid
+       call init_grid(tmp_grid,n, &
+            grid%cell, grid%layer+1, grid%N_box, &
+            tol=grid%tol, offset=grid%offset, sor=grid%sor)
+       grid => tmp_grid
+       call new_grid_size(grid,n)
+    end do
+    nullify(grid,tmp_grid)
+
+  contains
+
+    subroutine new_grid_size(grid,n)
+      type(mg_grid), intent(in) :: grid
+      integer, intent(out) :: n(3)
+      integer :: i
+
+      do i = 1 , 3
+         n(i) = (grid%n(i) + 1) / 2
+         if ( n(i) < 7 ) then
+            n(:) = 0
+            return
+         end if
+      end do
+
+    end subroutine new_grid_size
+
+  end subroutine init_grid_children_half
+
   recursive subroutine grid_add_box(grid, llc, box_cell, val, constant)
-    type(mg_grid), intent(in) :: grid
+    type(mg_grid), intent(inout) :: grid
     real(dp), intent(in) :: llc(3), box_cell(3,3)
     real(grid_p), intent(in) :: val
     logical, intent(in) :: constant
@@ -159,7 +191,6 @@ contains
     box%place(2,:) = 0
 
     urc = llc + box_cell(:,1) + box_cell(:,2) + box_cell(:,3)
-
     ! TODO currently this does not work with skewed axis
 
     do z = 0 , grid%n(3) - 1
@@ -174,6 +205,8 @@ contains
           if ( all(xyz <= urc) ) then
              call insert_point(box%place,x,y,z)
           end if
+       else if ( all( llc - xyz < urc - xyz) ) then
+          call insert_point(box%place,x,y,z)
        end if
     end do
     end do
@@ -183,8 +216,10 @@ contains
     if ( all(box%place(1,:) == huge(0)) .and. &
          all(box%place(2,:) == 0) ) then
        call delete_box(box)
-    else if ( associated(grid%child) ) then
-       ! add the box to the child grid
+    end if
+
+    ! add the box to the child grid
+    if ( associated(grid%child) ) then
        call grid_add_box(grid%child,llc,box_cell,val,constant)
     end if
 
@@ -218,7 +253,10 @@ contains
     real(grid_p), pointer :: V(:,:,:)
 
     call from1dto3d(grid%n,grid%V,V)
-    
+
+    ! set to zero
+    V = 0._grid_p
+
     ! set all boxes to their values if constant
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
@@ -264,6 +302,7 @@ contains
     if ( grid%N_box > 0 ) then
        deallocate(grid%box)
        nullify(grid%box)
+       grid%N_box = 0
     end if
     call grid_hold_back(grid)
 
@@ -490,7 +529,27 @@ end module t_mg
 subroutine from1dto3d(n,V1D,V3D)
   use t_mg, only : grid_p
   integer,   intent(in) :: n(3)
-  real(grid_p),  target :: V1D(n(1),n(2),n(3))
+  real(grid_p),  target :: V1D(n(1)*n(2)*n(3))
+!  real(grid_p), pointer :: V1D(:)
   real(grid_p), pointer :: V3D(:,:,:)
-  V3D => V1D
+  !V3D => getArray(V1D,n)
+  V3D (1:n(1),1:n(2),1:n(3)) => V1D
+contains
+
+  function getArray(array, shape_) result(aptr)
+    use iso_c_binding, only: C_LOC, C_F_POINTER
+    ! Pass in the array as an array of fixed size so that there
+    ! is no array descriptor associated with it. This means we
+    ! can get a pointer to the location of the data using C_LOC
+    real(grid_p), target :: array(1)
+    integer :: shape_(3)
+    real(grid_p), pointer :: aptr(:,:,:)
+
+    ! Use C_LOC to get the start location of the array data, and
+    ! use C_F_POINTER to turn this into a fortran pointer (aptr).
+    ! Note that we need to specify the shape of the pointer using an
+    ! integer array.
+    call C_F_POINTER(C_LOC(array), aptr, shape_)
+  end function getArray
+
 end subroutine from1dto3d

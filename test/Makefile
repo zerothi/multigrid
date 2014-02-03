@@ -10,17 +10,18 @@ include ../arch.make
 # We need to add the src-directory to the sources
 FFLAGS += -I../src
 
-LIB_NAME?=libmg.a
-LIB_NAME:=../src/$(LIB_NAME)
 default: all
 
 # Make dependecy list
 dep:
 	sfmakedepend --depend=obj --modext=o \
 		*.f90 *.F90
+	for d in */ ; do \
+		(cd $$d ; $(MAKE) dep) ; \
+	done
 
 # Grid objects
-OBJS = m_cube.o
+OBJS = m_cube.o m_mg_info.o
 
 LIB_TEST_NAME?=libmg_test.a
 $(LIB_TEST_NAME): $(OBJS)
@@ -35,5 +36,8 @@ all: $(LIB_TEST_NAME)
 
 clean:
 	rm -f $(OBJS) *.mod *.MOD
+	for d in */ ; do \
+		(cd $$d ; $(MAKE) clean) ; \
+	done
 
 # DO NOT DELETE THIS LINE - used by make depend
