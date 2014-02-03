@@ -41,22 +41,24 @@ contains
 
        ! solve the grid
        call grid_solve(grid)
-
+print *,'sth1'
        ! bring back data
        if ( associated(grid%parent) ) then
           call grid_bring_back(grid%parent)
        end if
+print *,'sth2'
 
        call grid_prolongation(grid)
+print *,'sth3'
+
+       ! print out number of iterations used on that cycle
+       write(*,'(2(a,i0),a)') &
+            'Completed (',grid%layer,') cycle in ',grid%itt-old_itt,' cycles'
 
        ! hold back data
        if ( associated(grid%parent) ) then
           call grid_hold_back(grid)
        end if
-
-       ! print out number of iterations used on that cycle
-       write(*,'(2(a,i0),a)') &
-            'Completed (',grid%layer,') cycle in ',grid%itt-old_itt,' cycles'
        
        grid => grid%parent
 

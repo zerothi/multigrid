@@ -51,8 +51,9 @@ program topbottom
 
   ! initialize the grid
   call grid_bring_back(top)
-  call grid_setup(top)
   top%V = 0._grid_p
+  call grid_setup(top)
+  print*,maxval(top%V)
 
   ! write out the initial cube file
   call write_cube('initial',top)

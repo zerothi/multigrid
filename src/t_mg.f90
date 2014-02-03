@@ -280,7 +280,8 @@ contains
 
   subroutine grid_bring_back(grid)
     type(mg_grid), intent(inout) :: grid
-    
+    ! ensure that it is empty
+    call grid_hold_back(grid)
     allocate(grid%V(grid%n(1),grid%n(2),grid%n(3)))
     allocate(grid%g(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
     allocate(grid%g_s(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
@@ -513,12 +514,12 @@ contains
     type(mg_box), intent(in) :: box
     integer, intent(in) :: x,y,z
     logical :: in
-    in = x <= box%place(1,1) .and. &
-         box%place(2,1) <= x .and. &
-         y <= box%place(1,2) .and. &
-         box%place(2,2) <= y .and. &
-         z <= box%place(1,3) .and. &
-         box%place(2,3) <= z
+    in = box%place(1,1) <= x .and. &
+         x <= box%place(2,1) .and. &
+         box%place(1,2) <= y .and. &
+         y <= box%place(2,2) .and. &
+         box%place(1,3) <= z .and. &
+         z <= box%place(2,3)
   end function in_box
 
 end module t_mg
