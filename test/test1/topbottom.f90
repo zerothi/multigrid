@@ -52,13 +52,14 @@ program topbottom
   ! initialize the grid
   call grid_bring_back(top)
   call grid_setup(top)
+  top%V = 0._grid_p
 
   ! write out the initial cube file
-  call write_cube('initial.cube',top)
+  call write_cube('initial',top)
 
   call mg_gs_cds(top)
 
-  call write_cube('test.cube',top)
+  call write_cube('test',top)
   
   call delete_grid(top)
   

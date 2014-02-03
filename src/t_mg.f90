@@ -19,7 +19,7 @@ module t_mg
                           ! this allows different tolerances for different layer-grids
      integer :: itt       ! iterations currently processed
      integer :: layer     ! the layer that this grid resides in
-     real(grid_p),  pointer :: V  (:) => null() ! update array
+     real(grid_p),  pointer :: V  (:,:,:) => null() ! update array
      real(grid_p),  pointer :: g  (:) => null() ! ghost arrays ( one long array for all bounds )
      real(grid_p),  pointer :: g_s(:) => null() ! send ghost arrays ( one long array for all bounds )
      type(mg_grid), pointer :: parent => null()
@@ -252,10 +252,7 @@ contains
     integer :: x,y,z
     real(grid_p), pointer :: V(:,:,:)
 
-    call from1dto3d(grid%n,grid%V,V)
-
-    ! set to zero
-    V = 0._grid_p
+    V => grid%V
 
     ! set all boxes to their values if constant
     do z = 1 , grid%n(3)
@@ -284,7 +281,7 @@ contains
   subroutine grid_bring_back(grid)
     type(mg_grid), intent(inout) :: grid
     
-    allocate(grid%V(grid%n(1)*grid%n(2)*grid%n(3)))
+    allocate(grid%V(grid%n(1),grid%n(2),grid%n(3)))
     allocate(grid%g(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
     allocate(grid%g_s(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
 
@@ -324,9 +321,9 @@ contains
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%child) ) return
 
-    call from1dto3d(grid%n ,grid%V ,V )
+    V => grid%V
     child => grid%child
-    call from1dto3d(child%n,child%V,Vc)
+    Vc => child%V
 
     ! initialize the child
     Vc = 0._grid_p
@@ -403,9 +400,9 @@ contains
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%parent) ) return
 
-    call from1dto3d(grid%n  ,grid%V  ,V )
+    V => grid%V
     parent => grid%parent
-    call from1dto3d(parent%n,parent%V,Vp)
+    Vp => parent%V
 
     ! initialize the parent
     Vp = 0._grid_p
@@ -525,31 +522,3 @@ contains
   end function in_box
 
 end module t_mg
-
-subroutine from1dto3d(n,V1D,V3D)
-  use t_mg, only : grid_p
-  integer,   intent(in) :: n(3)
-  real(grid_p),  target :: V1D(n(1)*n(2)*n(3))
-!  real(grid_p), pointer :: V1D(:)
-  real(grid_p), pointer :: V3D(:,:,:)
-  !V3D => getArray(V1D,n)
-  V3D (1:n(1),1:n(2),1:n(3)) => V1D
-contains
-
-  function getArray(array, shape_) result(aptr)
-    use iso_c_binding, only: C_LOC, C_F_POINTER
-    ! Pass in the array as an array of fixed size so that there
-    ! is no array descriptor associated with it. This means we
-    ! can get a pointer to the location of the data using C_LOC
-    real(grid_p), target :: array(1)
-    integer :: shape_(3)
-    real(grid_p), pointer :: aptr(:,:,:)
-
-    ! Use C_LOC to get the start location of the array data, and
-    ! use C_F_POINTER to turn this into a fortran pointer (aptr).
-    ! Note that we need to specify the shape of the pointer using an
-    ! integer array.
-    call C_F_POINTER(C_LOC(array), aptr, shape_)
-  end function getArray
-
-end subroutine from1dto3d

@@ -43,7 +43,9 @@ contains
        call grid_solve(grid)
 
        ! bring back data
-       call grid_bring_back(grid%parent)
+       if ( associated(grid%parent) ) then
+          call grid_bring_back(grid%parent)
+       end if
 
        call grid_prolongation(grid)
 
@@ -69,7 +71,7 @@ contains
 
     tol = grid%tol + 1._grid_p
 
-    call from1Dto3D(grid%n,grid%V, V)
+    V => grid%V
 
     do while ( tol > grid%tol ) 
 
