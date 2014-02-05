@@ -23,6 +23,7 @@ contains
        write(*,trim(fmt)//'a,i0,a,3(i4,tr1))')' -- Layer: ',grid%layer,' size: ',grid%n
        write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid%tol
        write(*,trim(fmt)//'a,e10.3)')' -- SOR: ',grid%sor
+       write(*,trim(fmt)//'a,3(tr1,e10.4))')' -- a(3): ',grid%a
        do j = 1 , grid%N_box
           call print_box(grid%box(j),indent = i)
        end do
@@ -47,7 +48,9 @@ contains
        fmt = '(t1,'
     end if
     
-    write(*,trim(fmt)//'a,e10.3,a,l2)')' ++ Box, value: ',box%val,' constant?: ',box%constant
+    write(*,trim(fmt)//'a,e10.3,a,l2,a,6(tr1,i0))')' ++ Box, value: ',&
+         box%val,' constant?: ',box%constant, &
+         'place: ',box%place
   end subroutine print_box
 
 end module m_mg_info

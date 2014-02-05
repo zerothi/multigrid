@@ -17,21 +17,22 @@ LIB_NAME:=../../src/$(LIB_NAME)
 LIB_TEST_NAME?=libmg_test.a
 LIB_TEST_NAME:=../$(LIB_TEST_NAME)
 
-default: test
+default: test1 test2
 
 # Make dependecy list
 dep:
 	sfmakedepend --depend=obj --modext=o \
 		*.f90 *.F90
 
-# Grid objects
-OBJS = topbottom.o
+test1: topbottom.o
+	$(FC) -o $@ $^ $(LIB_TEST_NAME) $(LIB_NAME)
+	./$@
 
-test: $(OBJS)
-	$(FC) -o test $(OBJS) $(LIB_TEST_NAME) $(LIB_NAME)
-	./test
+test2: topbottom_single.o
+	$(FC) -o $@ $^ $(LIB_TEST_NAME) $(LIB_NAME)
+	./$@
 
 clean:
-	rm -f test $(OBJS) *.mod *.MOD
+	rm -f test1 test2 $(OBJS) *.mod *.MOD
 
 # DO NOT DELETE THIS LINE - used by make depend

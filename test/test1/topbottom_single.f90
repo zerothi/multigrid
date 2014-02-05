@@ -1,4 +1,4 @@
-program topbottom
+program topbottom_single
 
   use t_mg
   use m_gs_CDS
@@ -20,6 +20,8 @@ program topbottom
 
   ! tolerance for the convergence
   tol = 1.e-9_grid_p
+  ! over-relaxation parameter
+  sor = 1.2_grid_p
 
   ! initialize the initial grid
   cell(:,1) = (/2._dp,0._dp,0._dp/)
@@ -29,28 +31,16 @@ program topbottom
   ! we create it to be 100x100x100
   nn = 100
   ! create grid
-  call init_grid(top,nn,cell,1,2,tol=tol)
+  call init_grid(top,nn,cell,1,2,tol=tol,sor=sor)
 
   write(*,*)'>> Created initial grid...'
-
-  ! create all children
-  call init_grid_children_half(top,max_layer=5)
-
-  ! manually set the sor-parameter
-  call grid_set(top,layer=1,sor=1.5_grid_p)
-  call grid_set(top,layer=2,sor=1.6_grid_p)
-  call grid_set(top,layer=3,sor=1.6_grid_p)
-  call grid_set(top,layer=4,sor=1.5_grid_p)
-  call grid_set(top,layer=5,sor=1.4_grid_p)
-
-  write(*,*)' >> Created all children...'
 
   write(*,*)'  >> Add all the boxes...'
   cell(:,3) = cell(:,3) / 10._grid_p
   ll = 0._dp
-  call grid_add_box(top, ll, cell, 1._grid_p, .true.)
+  call grid_add_box(top, ll, cell,  1._grid_p, .true.)
   ll(3) = 3._dp - cell(3,3)
-  call grid_add_box(top, ll, cell, -1._grid_p, .true.)
+  call grid_add_box(top, ll, cell,  -1._grid_p, .true.)
 
   call print_grid(top)
 
@@ -60,12 +50,12 @@ program topbottom
   call grid_setup(top)
 
   ! write out the initial cube file
-  call write_cube('initial',top)
+  call write_cube('initial_single',top)
 
   call mg_gs_cds(top)
 
-  call write_cube('test',top)
+  call write_cube('test_single',top)
   
   call delete_grid(top)
   
-end program topbottom
+end program topbottom_single

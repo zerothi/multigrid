@@ -12,12 +12,15 @@ module t_mg
      real(dp)     :: offset(3) ! the offset of the placement of the local grid 
      real(dp)     :: cell(3,3) ! the cell for the local grid
      real(dp)     :: dL(3,3) ! the cell stepping
+     real(dp)     :: dVol ! volume of voxel
+     real(dp)     :: Vol  ! volume of cell
      integer      :: n(3) ! size in each direction
      real(grid_p) :: sor  ! the SOR value
      real(grid_p) :: a(3) ! the pre-factors for the summation
      real(grid_p) :: tol  ! the tolerance of the current grid
                           ! this allows different tolerances for different layer-grids
      integer :: itt       ! iterations currently processed
+     integer :: steps     ! number of steps in each V-cycle
      integer :: layer     ! the layer that this grid resides in
      real(grid_p),  pointer :: V  (:,:,:) => null() ! update array
      real(grid_p),  pointer :: g  (:) => null() ! ghost arrays ( one long array for all bounds )
@@ -59,6 +62,8 @@ contains
     ! ensure it is empty
     call delete_grid(grid)
 
+    grid%steps = 3
+
     ! create the ax, ay, az pre-factors for the 3D Poisson solver
     ! note that cell is the cell-size for the total cell
     grid%n = n
@@ -73,9 +78,17 @@ contains
             cell(1,i) ** 2 + &
             cell(2,i) ** 2 + &
             cell(3,i) ** 2
-       celll(i) = celll(i) / grid%n(i)
+       celll(i) = celll(i) ! / grid%n(i)
        grid%dL(:,i) = cell(:,i) / grid%n(i)
     end do
+
+    grid%Vol = ( cell(2,1)*cell(3,2) - cell(3,1)*cell(2,2) ) * cell(1,3) + &
+         ( cell(3,1)*cell(1,2) - cell(1,1)*cell(3,2) ) * cell(2,3) + &
+         ( cell(1,1)*cell(2,2) - cell(2,1)*cell(1,2) ) * cell(3,3)
+
+    grid%dVol = ( grid%dL(2,1)*grid%dL(3,2) - grid%dL(3,1)*grid%dL(2,2) ) * grid%dL(1,3) + &
+         ( grid%dL(3,1)*grid%dL(1,2) - grid%dL(1,1)*grid%dL(3,2) ) * grid%dL(2,3) + &
+         ( grid%dL(1,1)*grid%dL(2,2) - grid%dL(2,1)*grid%dL(1,2) ) * grid%dL(3,3)
 
     ! set the values for the grid...
     grid%layer  = layer
@@ -104,6 +117,8 @@ contains
     grid%a(1) = celll(2) * celll(3) * tmp
     grid%a(2) = celll(1) * celll(3) * tmp
     grid%a(3) = celll(1) * celll(2) * tmp
+    grid%a = grid%a / sum(grid%a)
+    grid%a = 1._grid_p
 
     ! pre-allocate room for the boxes
     grid%N_box = boxes
@@ -113,19 +128,22 @@ contains
 
   end subroutine init_grid
 
-  subroutine init_grid_children_half(top)
+  subroutine init_grid_children_half(top,max_layer)
     type(mg_grid), intent(inout), target :: top
-    integer :: n(3)
+    integer, intent(in), optional :: max_layer
+    integer :: n(3), lmax_layer
     type(mg_grid), pointer :: grid, tmp_grid
     
     ! we will now create all the children according to the
     ! standard algorithms
+    lmax_layer = top%layer - 1
+    if ( present(max_layer) ) lmax_layer = max_layer
 
     call new_grid_size(top,n)
 
     ! create all the grids
     grid => top
-    do while ( all(n /= 0) )
+    do while ( all(n /= 0) .and. lmax_layer /= grid%layer)
        nullify(tmp_grid)
        allocate(tmp_grid)
        grid%child => tmp_grid
@@ -157,13 +175,33 @@ contains
 
   end subroutine init_grid_children_half
 
+  subroutine grid_set(grid,sor,tol,layer)
+    type(mg_grid), intent(inout), target :: grid
+    real(grid_p), intent(in), optional :: sor, tol
+    integer, intent(in), optional :: layer
+
+    type(mg_grid), pointer :: tmp_grid
+
+    tmp_grid => grid
+    if ( present(layer) ) then
+       do while ( layer /= tmp_grid%layer ) 
+          tmp_grid => tmp_grid%child
+          if ( .not. associated(tmp_grid) ) return
+       end do
+    end if
+    if ( present(sor) ) &
+         tmp_grid%sor = sor
+    if ( present(tol) ) &
+         tmp_grid%tol = tol
+  end subroutine grid_set
+
   recursive subroutine grid_add_box(grid, llc, box_cell, val, constant)
     type(mg_grid), intent(inout) :: grid
     real(dp), intent(in) :: llc(3), box_cell(3,3)
     real(grid_p), intent(in) :: val
     logical, intent(in) :: constant
     
-    real(dp) :: dz(3), dyz(3), xyz(3), urc(3)
+    real(dp) :: dz(3), dyz(3), xyz(3), urc(3), offset(3)
     integer :: i,x,y,z
     type(mg_box), pointer :: box
     
@@ -183,18 +221,19 @@ contains
     ! ensure it is empty
     call delete_box(box)
 
-    box%val = val
+    box%val = val 
     box%constant = constant
 
     ! initialize
     box%place(1,:) = huge(0)
     box%place(2,:) = 0
 
+    offset = grid%offset + (grid%dL(:,1)+grid%dL(:,2)+grid%dL(:,3))*.5_dp
     urc = llc + box_cell(:,1) + box_cell(:,2) + box_cell(:,3)
     ! TODO currently this does not work with skewed axis
 
     do z = 0 , grid%n(3) - 1
-    dz  = grid%dL(:,3) * z + grid%offset ! we immediately add the offset
+    dz  = grid%dL(:,3) * z + offset ! we immediately add the offset
     do y = 0 , grid%n(2) - 1
     dyz = grid%dL(:,2) * y + dz
     do x = 0 , grid%n(1) - 1
@@ -205,8 +244,6 @@ contains
           if ( all(xyz <= urc) ) then
              call insert_point(box%place,x,y,z)
           end if
-       else if ( all( llc - xyz < urc - xyz) ) then
-          call insert_point(box%place,x,y,z)
        end if
     end do
     end do
@@ -228,21 +265,18 @@ contains
     subroutine insert_point(place,x,y,z)
       integer, intent(inout) :: place(2,3)
       integer, intent(in) :: x,y,z
-      if ( x < place(1,1) ) then
-         place(1,1) = x + 1
-      else if ( place(2,1) <= x ) then
-         place(2,1) = x + 1
-      end if
-      if ( y < place(1,2) ) then
-         place(1,2) = y + 1
-      else if ( place(2,2) <= y ) then
-         place(2,2) = y + 1
-      end if
-      if ( z < place(1,3) ) then
-         place(1,3) = z + 1
-      else if ( place(2,3) <= z ) then
-         place(2,3) = z + 1
-      end if
+      if ( x < place(1,1) ) &
+           place(1,1) = x + 1
+      if ( place(2,1) <= x ) &
+           place(2,1) = x + 1
+      if ( y < place(1,2) ) &
+           place(1,2) = y + 1
+      if ( place(2,2) <= y ) &
+           place(2,2) = y + 1
+      if ( z < place(1,3) ) &
+           place(1,3) = z + 1
+      if ( place(2,3) <= z ) &
+           place(2,3) = z + 1
     end subroutine insert_point
 
   end subroutine grid_add_box
@@ -322,7 +356,7 @@ contains
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%child) ) return
 
-    V => grid%V
+    V  => grid%V
     child => grid%child
     Vc => child%V
 
@@ -401,20 +435,22 @@ contains
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%parent) ) return
 
-    V => grid%V
+    V  => grid%V
     parent => grid%parent
     Vp => parent%V
 
-    ! initialize the parent
+    ! initialize the parent to zero
     Vp = 0._grid_p
 
     do z = 1 , grid%n(3)
     pz = 2 * z
+    if ( parent%n(3) <= pz + 1 ) cycle
     do y = 1 , grid%n(2)
     py = 2 * y
+    if ( parent%n(2) <= py + 1 ) cycle
     do x = 1 , grid%n(1)
-
        px = 2 * x
+       if ( parent%n(1) <= px + 1 ) cycle
 
        v2 = f2 * V(x,y,z)
        v4 = f4 * V(x,y,z)
@@ -453,7 +489,7 @@ contains
        Vp(px,py,pz+1) = Vp(px,py,pz+1) + v2
 
        ! center
-       Vp(px,py,pz) = V(x,y,z)
+       Vp(px,py,pz)   = V(x,y,z)
 
     end do
     end do
@@ -521,5 +557,61 @@ contains
          box%place(1,3) <= z .and. &
          z <= box%place(2,3)
   end function in_box
+
+  pure function tolerance(old_tol,Vcur,Vnew) result(tol)
+    real(grid_p), intent(in) :: old_tol, Vcur, Vnew
+    real(grid_p) :: tol
+    if ( Vcur == 0._grid_p ) then
+       tol = old_tol
+    else
+       tol = max(old_tol,abs((Vnew-Vcur)/Vcur))
+    end if
+  end function tolerance
+
+
+  function layers(grid)
+    type(mg_grid), intent(in) :: grid
+    type(mg_grid), pointer :: t
+    integer :: layers
+    layers = 1
+    t => grid%child
+    do while ( associated(t) )
+       layers = layers + 1
+       t => t%child
+    end do
+  end function layers
+
+  subroutine grid_delete_layer(in_grid,layer)
+    type(mg_grid), intent(inout), target :: in_grid
+    integer, intent(in), optional :: layer
+    integer :: llayer
+    type(mg_grid), pointer :: grid
+
+    grid => in_grid
+    llayer = -1
+    if ( present(layer) ) llayer = layer
+    if ( llayer < 0 ) then
+       llayer = layers(in_grid) + 1 + llayer
+    end if
+
+    ! we can't kill the first one...
+    if ( llayer == 0 ) return
+    
+    do while ( llayer > 1 )
+       grid => grid%child
+       if ( .not. associated(grid) ) return
+
+       llayer = llayer - 1
+
+    end do
+
+    ! delete the grid
+    call delete_grid(grid)
+    grid => grid%parent
+    nullify(grid%child%parent)
+    deallocate(grid%child)
+    nullify(grid%child)
+    
+  end subroutine grid_delete_layer
 
 end module t_mg

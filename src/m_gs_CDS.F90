@@ -14,12 +14,51 @@ module m_gs_CDS
 contains
 
   subroutine mg_gs_cds(top_grid)
-    type(mg_grid), target :: top_grid
+    type(mg_grid), intent(inout), target :: top_grid
     type(mg_grid), pointer :: grid
     integer :: old_itt
-    
+    real(grid_p) :: tol, old_sum, new_sum
+    real(grid_p) :: nr
+
     grid => top_grid
+
+    nr = 1._grid_p / (grid%n(1)*grid%n(2)*grid%n(3))
+    
+    do while ( layers(grid) /= 1 )
+
+       print *, layers(grid)
+       tol = grid%tol + 1._grid_p
+       
+       old_sum = sum(grid%V) * nr
+       do while ( tol > grid%tol ) 
+
+          ! initialize the tolerance and step iteration
+          tol = 0._dp
+          grid%itt = grid%itt + 1
+
+          call gs_v(grid)
+
+          ! the tolerance is the difference between the 
+          ! sum of the before iteration and the new iteration
+          new_sum = sum(grid%V) * nr
+
+          tol = abs(old_sum - new_sum)
+          old_sum = new_sum
+          print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum
+          
+       end do
+       
+       call grid_delete_layer(grid,layer=-1)
+       
+    end do
+
+    return
+
+    ! < here is the per-grid solver>
     do while ( associated(grid%child) ) 
+
+       ! Do one step
+       call gs_step(grid)
 
        ! allocate space for the child
        call grid_bring_back(grid%child)
@@ -41,25 +80,18 @@ contains
 
        ! solve the grid
        call grid_solve(grid)
-print *,'sth1'
-       ! bring back data
-       if ( associated(grid%parent) ) then
-          call grid_bring_back(grid%parent)
-       end if
-print *,'sth2'
-
-       call grid_prolongation(grid)
-print *,'sth3'
 
        ! print out number of iterations used on that cycle
        write(*,'(2(a,i0),a)') &
             'Completed (',grid%layer,') cycle in ',grid%itt-old_itt,' cycles'
 
-       ! hold back data
+       ! bring back data
        if ( associated(grid%parent) ) then
+          call grid_bring_back(grid%parent)
+          call grid_prolongation(grid)
           call grid_hold_back(grid)
        end if
-       
+
        grid => grid%parent
 
     end do
@@ -68,37 +100,100 @@ print *,'sth3'
 
   subroutine grid_solve(grid)
     type(mg_grid), intent(inout) :: grid
-    real(grid_p), pointer :: V(:,:,:)
-    real(grid_p) :: tol
+    real(grid_p) :: tol, old_sum, new_sum
+    real(grid_p) :: nr
+
+    nr = 1._grid_p / (grid%n(1)*grid%n(2)*grid%n(3))
 
     tol = grid%tol + 1._grid_p
-
-    V => grid%V
+    
+    old_sum = sum(grid%V) * nr
 
     do while ( tol > grid%tol ) 
 
        ! initialize the tolerance and step iteration
        tol = 0._dp
        grid%itt = grid%itt + 1
-       
-       !< communicate bounds >
 
-       call gs(grid, V, tol)
-       
-       !< wait communicate >
-       
-       call gs_bound(grid, V, tol)
+       call gs_step(grid)
+
+       ! the tolerance is the difference between the 
+       ! sum of the before iteration and the new iteration
+       new_sum = sum(grid%V) * nr
+!       print *,old_sum,new_sum,any(isnan(grid%V))
+       tol = abs(old_sum - new_sum)
+       old_sum = new_sum
+       print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum
 
     end do
 
   end subroutine grid_solve
-  
-  subroutine gs(grid,V,tol)
+
+  subroutine gs_V(top_grid)
+    type(mg_grid), intent(inout), target :: top_grid
+    type(mg_grid), pointer :: grid
+    integer :: i
+    
+    grid => top_grid
+    do while ( associated(grid%child) ) 
+
+       ! Do two steps
+       do i = 1 , grid%steps
+          call gs_step(grid)
+       end do
+
+       ! allocate space for the child
+       call grid_bring_back(grid%child)
+       
+       ! restrict data to child
+       call grid_restriction(grid)
+
+       ! this will hold-back the grid
+       call grid_hold_back(grid)
+       
+       ! next
+       grid => grid%child
+
+    end do
+
+    do while ( associated(grid) ) 
+
+       do i = 1 , grid%steps
+          call gs_step(grid)
+       end do
+
+       ! bring back data
+       if ( associated(grid%parent) ) then
+          call grid_bring_back(grid%parent)
+          call grid_prolongation(grid)
+          call grid_hold_back(grid)
+       end if
+
+       grid => grid%parent
+
+    end do
+
+  end subroutine gs_V
+
+  subroutine gs_step(grid)
     type(mg_grid), intent(inout) :: grid
-    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
-    real(grid_p), intent(inout) :: tol
-    real(grid_p) :: vcur, a(3), sor(2)
+
+    !< communicate bounds >
+
+    call gs(grid)
+    !< wait communicate >       
+
+    call gs_bound(grid)
+
+  end subroutine gs_step
+
+  subroutine gs(grid)
+    type(mg_grid), intent(inout) :: grid
+    real(grid_p), pointer :: V(:,:,:)
+    real(grid_p) :: sor(2)
     integer :: x,y,z
+
+    V => grid%V
 
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
@@ -107,39 +202,39 @@ print *,'sth3'
        do y = 2 , grid%n(2) - 1
           do x = 2 , grid%n(1) - 1
              ! calculate the current contribution
-             vcur = val(grid,V,x,y,z)
-             ! Calculate the tolerance
-             tol = max(abs(V(x,y,z) - vcur),tol)
-             V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
+             V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val(grid,V,x,y,z)
           end do
        end do
     end do
     
   end subroutine gs
 
-  subroutine gs_bound(grid,V,tol)
+  subroutine gs_bound(grid)
     type(mg_grid), intent(inout) :: grid
-    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
-    real(grid_p), intent(inout) :: tol
 
-    call gs_xb(grid,1,V,tol)
-    call gs_xb(grid,grid%n(1),V,tol)
-    call gs_yb(grid,1,V,tol)
-    call gs_yb(grid,grid%n(2),V,tol)
-    call gs_zb(grid,1,V,tol)
-    call gs_zb(grid,grid%n(3),V,tol)
+    call gs_xb(grid,1)
+    if ( grid%n(1) > 1 ) &
+         call gs_xb(grid,grid%n(1))
+    call gs_yb(grid,1)
+    if ( grid%n(2) > 1 ) &
+         call gs_yb(grid,grid%n(2))
+    call gs_zb(grid,1)
+    if ( grid%n(3) > 1 ) then
+       call gs_zb(grid,grid%n(3))
+    end if
 
   end subroutine gs_bound
   
-  subroutine gs_xb(grid,x,V,tol)
+  subroutine gs_xb(grid,x)
     ! this routine calculates the contribution on the
     ! lower/upper x-bound
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: x
-    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
-    real(grid_p), intent(inout) :: tol
-    real(grid_p) :: vcur, sor(2)
+    real(grid_p), pointer :: V(:,:,:)
+    real(grid_p) :: sor(2)
     integer :: dx,y,z
+
+    V => grid%V
 
     if ( x == 1 ) then
        dx = 1 
@@ -161,12 +256,7 @@ print *,'sth3'
 
     do z = 2 , grid%n(3) - 1
        do y = 2 , grid%n(2) - 1
-          ! calculate the current contribution
-          vcur = val_xb(grid,V,x,y,z,dx)
-          ! Calculate the tolerance
-          tol = max(abs(V(x,y,z) - vcur),tol)
-          ! we implement the SOR-algorithm
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
+          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_xb(grid,V,x,y,z,dx)
        end do
     end do
 
@@ -194,15 +284,16 @@ print *,'sth3'
 
   end subroutine gs_xb
 
-  subroutine gs_yb(grid,y,V,tol)
+  subroutine gs_yb(grid,y)
     ! this routine calculates the contribution on the
     ! lower/upper y-bound
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: y
-    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
-    real(grid_p), intent(inout) :: tol
-    real(grid_p) :: vcur, sor(2)
+    real(grid_p), pointer :: V(:,:,:)
+    real(grid_p) :: sor(2)
     integer :: x,dy,z
+
+    V => grid%V
     if ( y == 1 ) then
        dy = 1 
     else
@@ -218,11 +309,7 @@ print *,'sth3'
     
     do z = 2 , grid%n(3) - 1
        do x = 2 , grid%n(1) - 1
-          ! calculate the current contribution
-          vcur = val_yb(grid,V,x,y,z,dy)
-          ! Calculate the tolerance
-          tol = max(abs(V(x,y,z) - vcur),tol)
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
+          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_yb(grid,V,x,y,z,dy)
        end do
     end do
 
@@ -232,16 +319,16 @@ print *,'sth3'
 
   end subroutine gs_yb
 
-  subroutine gs_zb(grid,z,V,tol)
+  subroutine gs_zb(grid,z)
     ! this routine calculates the contribution on the
     ! lower/upper z-bound
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: z
-    real(grid_p), intent(inout) :: V(grid%n(1),grid%n(2),grid%n(3))
-    real(grid_p), intent(inout) :: tol
-    real(grid_p) :: vcur, val_r(3), sor(2)
+    real(grid_p), pointer :: V(:,:,:)
+    real(grid_p) :: sor(2)
     integer :: x,y,dz
 
+    V => grid%V
     if ( z == 1 ) then
        dz = 1 
     else
@@ -257,11 +344,7 @@ print *,'sth3'
     
     do y = 2 , grid%n(2) - 1
        do x = 2 , grid%n(1) - 1
-          ! calculate the current contribution
-          vcur = val_zb(grid,V,x,y,z,dz)
-          ! Calculate the tolerance
-          tol = max(abs(V(x,y,z) - vcur),tol)
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
+          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_zb(grid,V,x,y,z,dz)
        end do
     end do
 
@@ -271,14 +354,14 @@ print *,'sth3'
 
   end subroutine gs_zb
 
-  subroutine gs_corner(grid,sor,V,x,y,z,dx,dy,dz,tol)
+  subroutine gs_corner(grid,sor,x,y,z,dx,dy,dz)
     type(mg_grid), intent(in) :: grid
     real(grid_p), intent(in) :: sor(2)
-    real(grid_p), intent(inout) :: V(:,:,:)
     integer, intent(in) :: x,y,z,dx,dy,dz
-    real(grid_p), intent(inout) :: tol
+    real(grid_p), pointer :: V(:,:,:)
     real(grid_p) :: vcur, val_r(3)
     if ( is_constant(grid,x,y,z) ) return
+    V => grid%V
     val_r(1) = val_rho(grid,x+dx,y,z)
     val_r(2) = val_rho(grid,x,y+dy,z)
     val_r(3) = val_rho(grid,x,y,z+dz)
@@ -287,11 +370,10 @@ print *,'sth3'
          grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
          grid%a(2) * ( V(x,y+dy,z) * val_r(2) ) + &
          grid%a(3) * ( V(x,y,z+dz) * val_r(3) )
-    tol = max(abs(V(x,y,z) - vcur),tol)
     V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
   end subroutine gs_corner
 
-  pure function val(grid,V,x,y,z)
+ function val(grid,V,x,y,z)
     type(mg_grid), intent(in) :: grid
     real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: x,y,z
@@ -335,7 +417,7 @@ print *,'sth3'
     val_r = val_r / sum(val_r)
 
     val = &
-         2._grid_p * grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
+         grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
          grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
          grid%a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
 
@@ -348,6 +430,10 @@ print *,'sth3'
     integer, intent(in) :: x,y,z,dy
     real(grid_p) :: val, val_r(5)
 
+    ! default value must already be initialized
+    val = V(x,y,z)
+    if ( is_constant(grid,x,y,z) ) return
+
     val_r(1) = val_rho(grid,x-1,y,z)
     val_r(2) = val_rho(grid,x+1,y,z)
     val_r(3) = val_rho(grid,x,y+dy,z)
@@ -357,7 +443,7 @@ print *,'sth3'
 
     val = &
          grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         2._grid_p * grid%a(2) * ( V(x,y+dy,z) * val_r(3) ) + &
+         grid%a(2) * ( V(x,y+dy,z) * val_r(3) ) + &
          grid%a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
     
   end function val_yb
@@ -367,6 +453,10 @@ print *,'sth3'
     real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: x,y,z,dz
     real(grid_p) :: val, val_r(5)
+
+    ! default value must already be initialized
+    val = V(x,y,z)
+    if ( is_constant(grid,x,y,z) ) return
 
     val_r(1) = val_rho(grid,x-1,y,z)
     val_r(2) = val_rho(grid,x+1,y,z)
@@ -378,7 +468,7 @@ print *,'sth3'
     val = &
          grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
          grid%a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
-         2._grid_p * grid%a(3) * ( V(x,y,z+dz) * val_r(5) )
+         grid%a(3) * ( V(x,y,z+dz) * val_r(5) )
 
   end function val_zb
 
