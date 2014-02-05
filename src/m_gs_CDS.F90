@@ -16,49 +16,69 @@ contains
   subroutine mg_gs_cds(top_grid)
     type(mg_grid), intent(inout), target :: top_grid
     type(mg_grid), pointer :: grid
-    integer :: old_itt
+    integer :: old_itt, n(3)
     real(grid_p) :: tol, old_sum, new_sum
-    real(grid_p) :: nr
 
     grid => top_grid
 
-    nr = 1._grid_p / (grid%n(1)*grid%n(2)*grid%n(3))
-    
-    do while ( layers(grid) /= 1 )
+!    ! first we move all the way down to the second lowest...
+!    do while ( associated(grid%child%child) )
+!       call grid_bring_back(grid%child)
+!       call grid_restriction(grid)
+!       call grid_hold_back(grid)
+!       grid => grid%child
+!    end do
 
-       print *, layers(grid)
-       tol = grid%tol + 1._grid_p
-       
-       old_sum = sum(grid%V) * nr
-       do while ( tol > grid%tol ) 
 
-          ! initialize the tolerance and step iteration
-          tol = 0._dp
-          grid%itt = grid%itt + 1
-
-          call gs_v(grid)
-
-          ! the tolerance is the difference between the 
-          ! sum of the before iteration and the new iteration
-          new_sum = sum(grid%V) * nr
-
-          tol = abs(old_sum - new_sum)
-          old_sum = new_sum
-          print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum
-          
-       end do
-       
-       call grid_delete_layer(grid,layer=-1)
-       
-    end do
-
-    return
+!    do 
+!
+!       !grid => grid_layer(top_grid,layer=-2)
+!       n = grid%n / 2
+!       print *, layers(grid,enabled=.true.)
+!       tol = grid%tol + 1._grid_p
+!       old_itt = grid%itt
+!       old_sum = grid_sum(grid)! * nr
+!       do while ( tol > grid%tol ) 
+!
+!          ! initialize the tolerance and step iteration
+!          grid%itt = grid%itt + 1
+!
+!          call gs_v_c(grid)
+!
+!          ! the tolerance is the difference between the 
+!          ! sum of the before iteration and the new iteration
+!          new_sum = grid_sum(grid)! * nr
+!
+!          tol = abs(old_sum - new_sum)
+!          old_sum = new_sum
+!          print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum,grid%V(n(1),n(2),n(3))
+!
+!          print '(100(tr1,f4.2))',grid%V(n(1),n(2),1:n(3))
+!          print '(100(tr1,f4.2))',grid%V(n(1),n(2),n(3)+1:)
+!          ! print out number of iterations used on that cycle
+!          !write(*,'(2(a,i0),a)') &
+!          !     'Completed (',grid%layer,') cycle in ',grid%itt-old_itt,' cycles'
+!
+!          if ( grid%itt > old_itt + 100 ) then
+!             tol = 0.
+!          end if
+!
+!       end do
+!
+!       if ( layers(grid,enabled=.true.) == 1 ) exit
+!       
+!       call grid_onoff_layer(grid,.false.,layer=layers(grid,enabled=.true.))
+!       
+!    end do
+!
+!    return
 
     ! < here is the per-grid solver>
+
     do while ( associated(grid%child) ) 
 
        ! Do one step
-       call gs_step(grid)
+!       call gs_step(grid)
 
        ! allocate space for the child
        call grid_bring_back(grid%child)
@@ -102,28 +122,35 @@ contains
     type(mg_grid), intent(inout) :: grid
     real(grid_p) :: tol, old_sum, new_sum
     real(grid_p) :: nr
+    integer :: old_itt
+
+    if ( .not. grid%enabled ) return
 
     nr = 1._grid_p / (grid%n(1)*grid%n(2)*grid%n(3))
 
     tol = grid%tol + 1._grid_p
     
-    old_sum = sum(grid%V) * nr
+    old_sum = grid_sum(grid) ! * nr
+
+    old_itt = grid%itt
 
     do while ( tol > grid%tol ) 
 
        ! initialize the tolerance and step iteration
-       tol = 0._dp
        grid%itt = grid%itt + 1
 
        call gs_step(grid)
 
        ! the tolerance is the difference between the 
        ! sum of the before iteration and the new iteration
-       new_sum = sum(grid%V) * nr
-!       print *,old_sum,new_sum,any(isnan(grid%V))
+       new_sum = grid_sum(grid) ! * nr
        tol = abs(old_sum - new_sum)
        old_sum = new_sum
        print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum
+
+       ! print out number of iterations used on that cycle
+       !write(*,'(2(a,i0),a)') &
+       !     'Completed (',grid%layer,') cycle in ',grid%itt-old_itt,' cycles'
 
     end do
 
@@ -132,16 +159,20 @@ contains
   subroutine gs_V(top_grid)
     type(mg_grid), intent(inout), target :: top_grid
     type(mg_grid), pointer :: grid
-    integer :: i
+    integer :: i,n(3), cur_layer
     
     grid => top_grid
     do while ( associated(grid%child) ) 
+
+       ! if the grid is not enabled we immediately exit
+       ! the restriction cycle
+       if ( .not. grid%child%enabled ) exit
 
        ! Do two steps
        do i = 1 , grid%steps
           call gs_step(grid)
        end do
-
+       
        ! allocate space for the child
        call grid_bring_back(grid%child)
        
@@ -150,17 +181,27 @@ contains
 
        ! this will hold-back the grid
        call grid_hold_back(grid)
-       
+
        ! next
        grid => grid%child
 
     end do
 
-    do while ( associated(grid) ) 
+    n = grid%n / 2
+    print '(''a'',i0,100(tr1,f4.2))',grid%layer,grid%V(n(1),n(2),1:n(3))
+    print '(i0,100(tr1,f4.2))',grid%layer,grid%V(n(1),n(2),n(3)+1:)
+
+    ! solve the lowest grid...
+    call grid_solve(grid)
+
+    do while ( associated(grid) )
 
        do i = 1 , grid%steps
           call gs_step(grid)
        end do
+       n = grid%n / 2
+       print '(i0,100(tr1,f4.2))',grid%layer,grid%V(n(1),n(2),1:n(3))
+       print '(i0,100(tr1,f4.2))',grid%layer,grid%V(n(1),n(2),n(3)+1:)
 
        ! bring back data
        if ( associated(grid%parent) ) then
@@ -174,6 +215,93 @@ contains
     end do
 
   end subroutine gs_V
+
+  subroutine gs_V_c(top_grid)
+    type(mg_grid), intent(inout), target :: top_grid
+    type(mg_grid), pointer :: grid
+    integer :: i,n(3), cur_layer
+
+    call gs_down(top_grid,grid)
+
+    n = grid%n / 2
+    print '(''a'',i0,100(tr1,f4.2))',grid%layer,grid%V(n(1),n(2),1:n(3))
+    print '(i0,100(tr1,f4.2))',grid%layer,grid%V(n(1),n(2),n(3)+1:)
+
+    ! solve the lowest grid...
+    call grid_solve(grid)
+
+    call gs_up(grid,top_grid)
+
+  end subroutine gs_V_c
+
+  subroutine gs_down(top_grid,bottom_grid)
+    type(mg_grid), intent(inout), target :: top_grid
+    type(mg_grid), pointer :: bottom_grid
+    type(mg_grid), pointer :: grid
+    integer :: i
+    
+    grid => top_grid
+    bottom_grid => grid
+    do while ( associated(grid%child) ) 
+
+       ! if the grid is not enabled we immediately exit
+       ! the restriction cycle
+       if ( .not. grid%child%enabled ) exit
+
+       ! Do two steps
+       do i = 1 , grid%steps
+          call gs_step(grid)
+       end do
+       
+       ! allocate space for the child
+       call grid_bring_back(grid%child)
+       
+       ! restrict data to child
+       call grid_restriction(grid)
+
+       ! this will hold-back the grid
+       call grid_hold_back(grid)
+
+       ! next
+       grid => grid%child
+
+       ! update bottom-grid
+       bottom_grid => grid
+
+    end do
+
+  end subroutine gs_down
+
+  subroutine gs_up(bottom_grid,top_grid)
+    type(mg_grid), intent(inout), target :: bottom_grid
+    type(mg_grid), intent(in)            :: top_grid
+    type(mg_grid), pointer               :: grid
+    integer :: i,n(3)
+    
+    grid => bottom_grid
+    do while ( associated(grid) )
+       n = grid%n
+
+       do i = 1 , grid%steps
+          call gs_step(grid)
+       end do
+       n = grid%n
+       print '(i0,100(tr1,f4.2))',grid%layer,grid%V(n(1)/2,n(2)/2,1:n(3)/2)
+       print '(i0,100(tr1,f4.2))',grid%layer,grid%V(n(1)/2,n(2)/2,n(3)/2+1:)
+
+       ! bring back data
+       if ( associated(grid%parent) ) then
+          if ( grid%layer == top_grid%layer ) return
+          call grid_bring_back(grid%parent)
+          call grid_prolongation(grid)
+          call grid_hold_back(grid)
+       end if
+
+       grid => grid%parent
+
+    end do
+
+  end subroutine gs_up
 
   subroutine gs_step(grid)
     type(mg_grid), intent(inout) :: grid
@@ -211,17 +339,14 @@ contains
 
   subroutine gs_bound(grid)
     type(mg_grid), intent(inout) :: grid
-
+    
+    ! currently we can't handle 2D stuff
     call gs_xb(grid,1)
-    if ( grid%n(1) > 1 ) &
-         call gs_xb(grid,grid%n(1))
+    call gs_xb(grid,grid%n(1))
     call gs_yb(grid,1)
-    if ( grid%n(2) > 1 ) &
-         call gs_yb(grid,grid%n(2))
+    call gs_yb(grid,grid%n(2))
     call gs_zb(grid,1)
-    if ( grid%n(3) > 1 ) then
-       call gs_zb(grid,grid%n(3))
-    end if
+    call gs_zb(grid,grid%n(3))
 
   end subroutine gs_bound
   
@@ -235,7 +360,6 @@ contains
     integer :: dx,y,z
 
     V => grid%V
-
     if ( x == 1 ) then
        dx = 1 
     else
@@ -394,7 +518,7 @@ contains
     val = &
          grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
          grid%a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
-         grid%a(3) * ( V(x,y,z+1) * val_r(5) + V(x,y,z+1) * val_r(6) )
+         grid%a(3) * ( V(x,y,z-1) * val_r(5) + V(x,y,z+1) * val_r(6) )
 
   end function val
 
@@ -419,7 +543,7 @@ contains
     val = &
          grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
          grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
-         grid%a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
+         grid%a(3) * ( V(x,y,z-1) * val_r(4) + V(x,y,z+1) * val_r(5) )
 
   end function val_xb
 
@@ -444,7 +568,7 @@ contains
     val = &
          grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
          grid%a(2) * ( V(x,y+dy,z) * val_r(3) ) + &
-         grid%a(3) * ( V(x,y,z+1) * val_r(4) + V(x,y,z+1) * val_r(5) )
+         grid%a(3) * ( V(x,y,z-1) * val_r(4) + V(x,y,z+1) * val_r(5) )
     
   end function val_yb
 

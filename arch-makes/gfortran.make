@@ -8,7 +8,7 @@ FFLAGS=-O3 -m64 -fPIC -fno-second-underscore -ftree-vectorize -fexpensive-optimi
 	-ftree-loop-optimize -frename-registers -fprefetch-loop-arrays -finline-small-functions \
 	-fipa-pure-const -foptimize-sibling-calls -fipa-cp
 
-#FFLAGS = -g -O0
+FFLAGS = -g -O0
 
 #FFLAGS += -Wunused
 

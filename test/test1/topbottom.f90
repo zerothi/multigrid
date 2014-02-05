@@ -15,6 +15,7 @@ program topbottom
   type(mg_grid), target :: top
 
   integer :: N , nn(3)
+  real :: t1, t2
   real(dp) :: cell(3,3), ll(3)
   real(grid_p) :: tol, sor
 
@@ -34,23 +35,29 @@ program topbottom
   write(*,*)'>> Created initial grid...'
 
   ! create all children
-  call init_grid_children_half(top,max_layer=5)
+  call init_grid_children_half(top,max_layer=3)
 
   ! manually set the sor-parameter
-  call grid_set(top,layer=1,sor=1.5_grid_p)
+  call grid_set(top,layer=1,sor=1.2_grid_p)
   call grid_set(top,layer=2,sor=1.6_grid_p)
   call grid_set(top,layer=3,sor=1.6_grid_p)
   call grid_set(top,layer=4,sor=1.5_grid_p)
   call grid_set(top,layer=5,sor=1.4_grid_p)
+
+  do N = 1 , layers(top)
+     call grid_set(top,layer=N,sor=1.3_grid_p,tol=tol*10**(2*N))
+     !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
+  end do
+  call grid_set(top,layer=1,tol=tol)
 
   write(*,*)' >> Created all children...'
 
   write(*,*)'  >> Add all the boxes...'
   cell(:,3) = cell(:,3) / 10._grid_p
   ll = 0._dp
-  call grid_add_box(top, ll, cell, 1._grid_p, .true.)
+  call grid_add_box(top, ll, cell, 1._grid_p, 1._grid_p, .true.)
   ll(3) = 3._dp - cell(3,3)
-  call grid_add_box(top, ll, cell, -1._grid_p, .true.)
+  call grid_add_box(top, ll, cell, -1._grid_p, 1._grid_p, .true.)
 
   call print_grid(top)
 
@@ -62,7 +69,13 @@ program topbottom
   ! write out the initial cube file
   call write_cube('initial',top)
 
+  CALL CPU_TIME(t1)
+
   call mg_gs_cds(top)
+
+  CALL CPU_TIME(t2)
+
+  print *,'Timing:', t2-t1
 
   call write_cube('test',top)
   

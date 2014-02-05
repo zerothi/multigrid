@@ -9,6 +9,7 @@ module t_mg
 
   type :: mg_grid
      ! the grid information
+     logical      :: enabled =.true. ! turn on/off the run on this grid
      real(dp)     :: offset(3) ! the offset of the placement of the local grid 
      real(dp)     :: cell(3,3) ! the cell for the local grid
      real(dp)     :: dL(3,3) ! the cell stepping
@@ -40,7 +41,8 @@ module t_mg
      ! ymin/ymax
      ! zmin/zmax
      integer :: place(2,3) = 0
-     real(grid_p) :: val = 1._grid_p ! *MUST be above 1*
+     real(grid_p) :: val = 0._grid_p ! 
+     real(grid_p) :: rho = 1._grid_p ! *MUST be above 1*
      logical :: constant = .false.
   end type mg_box
 
@@ -90,6 +92,7 @@ contains
          ( grid%dL(3,1)*grid%dL(1,2) - grid%dL(1,1)*grid%dL(3,2) ) * grid%dL(2,3) + &
          ( grid%dL(1,1)*grid%dL(2,2) - grid%dL(2,1)*grid%dL(1,2) ) * grid%dL(3,3)
 
+    grid%enabled = .true.
     ! set the values for the grid...
     grid%layer  = layer
     grid%offset = 0._grid_p
@@ -195,10 +198,10 @@ contains
          tmp_grid%tol = tol
   end subroutine grid_set
 
-  recursive subroutine grid_add_box(grid, llc, box_cell, val, constant)
+  recursive subroutine grid_add_box(grid, llc, box_cell, val, rho, constant)
     type(mg_grid), intent(inout) :: grid
     real(dp), intent(in) :: llc(3), box_cell(3,3)
-    real(grid_p), intent(in) :: val
+    real(grid_p), intent(in) :: val, rho
     logical, intent(in) :: constant
     
     real(dp) :: dz(3), dyz(3), xyz(3), urc(3), offset(3)
@@ -222,6 +225,8 @@ contains
     call delete_box(box)
 
     box%val = val 
+    box%rho = rho 
+    if ( rho < 0._grid_p ) stop 'not available'
     box%constant = constant
 
     ! initialize
@@ -257,7 +262,7 @@ contains
 
     ! add the box to the child grid
     if ( associated(grid%child) ) then
-       call grid_add_box(grid%child,llc,box_cell,val,constant)
+       call grid_add_box(grid%child,llc,box_cell,val,rho,constant)
     end if
 
   contains
@@ -293,7 +298,7 @@ contains
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
        if ( is_constant(grid,x,y,z) ) then
-          V(x,y,z) = val_rho(grid,x,y,z)
+          V(x,y,z) = val_constant(grid,x,y,z)
        end if
     end do
     end do
@@ -376,33 +381,33 @@ contains
        Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y-1,z-1) * f1
        Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y-1,z+1) * f1
        Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y+1,z-1) * f1
-       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y+1,z+1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y+1,z+1) * f1 ! 4
        Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y-1,z-1) * f1
        Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y-1,z+1) * f1
        Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y+1,z-1) * f1
-       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y+1,z+1) * f1
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y+1,z+1) * f1 ! 8
 
        ! middles
        Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y-1,z) * f2
        Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y+1,z) * f2
        Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y,z-1) * f2
-       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y,z+1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y,z+1) * f2 ! 4
        Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y-1,z) * f2
        Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y+1,z) * f2
        Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y,z-1) * f2
-       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y,z+1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y,z+1) * f2 ! 8
        Vc(px,py,pz) = Vc(px,py,pz) + V(x,y-1,z-1) * f2
        Vc(px,py,pz) = Vc(px,py,pz) + V(x,y-1,z+1) * f2
        Vc(px,py,pz) = Vc(px,py,pz) + V(x,y+1,z-1) * f2
-       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y+1,z+1) * f2
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y+1,z+1) * f2 ! 12
 
        ! neighbours
        Vc(px,py,pz) = Vc(px,py,pz) + V(x-1,y,z) * f4
        Vc(px,py,pz) = Vc(px,py,pz) + V(x+1,y,z) * f4
-       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y-1,z) * f4
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y-1,z) * f4 ! 3
        Vc(px,py,pz) = Vc(px,py,pz) + V(x,y+1,z) * f4
        Vc(px,py,pz) = Vc(px,py,pz) + V(x,y,z-1) * f4
-       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y,z+1) * f4
+       Vc(px,py,pz) = Vc(px,py,pz) + V(x,y,z+1) * f4 ! 6
 
        ! center
        Vc(px,py,pz) = Vc(px,py,pz) + V(x,y,z) * f8
@@ -411,6 +416,7 @@ contains
     end do
     end do
 
+    print *,sum(Vc),sum(V)
     ! we still need the border...
 
     ! re-instantiate the constant fields
@@ -519,13 +525,13 @@ contains
 
   end function is_constant
 
-  pure function val_rho(grid,x,y,z) result(val)
+  pure function val_constant(grid,x,y,z) result(val)
     type(mg_grid), intent(in) :: grid
     integer, intent(in) :: x,y,z
     real(grid_p) :: val
 
     integer :: i
-    
+
     do i = 1 , grid%N_box
        if ( in_box(grid%box(i),x,y,z) )then
           val = grid%box(i)%val
@@ -534,7 +540,26 @@ contains
     end do
 
     ! all values are defaulted to 1
-    val = 1._grid_p
+    val = 0._grid_p
+
+  end function val_constant
+  
+  pure function val_rho(grid,x,y,z) result(rho)
+    type(mg_grid), intent(in) :: grid
+    integer, intent(in) :: x,y,z
+    real(grid_p) :: rho
+
+    integer :: i
+
+    do i = 1 , grid%N_box
+       if ( in_box(grid%box(i),x,y,z) )then
+          rho = grid%box(i)%rho
+          return
+       end if
+    end do
+
+    ! all values are defaulted to 1
+    rho = 1._grid_p
 
   end function val_rho
 
@@ -543,6 +568,7 @@ contains
     type(mg_box), intent(inout) :: box
     box%place = 0
     box%val = 1._grid_p
+    box%rho = 1._grid_p
     box%constant = .false.
   end subroutine delete_box
 
@@ -569,14 +595,21 @@ contains
   end function tolerance
 
 
-  function layers(grid)
+  function layers(grid,enabled)
     type(mg_grid), intent(in) :: grid
+    logical, intent(in), optional :: enabled
     type(mg_grid), pointer :: t
     integer :: layers
     layers = 1
     t => grid%child
     do while ( associated(t) )
-       layers = layers + 1
+       if ( present(enabled) ) then
+          if ( enabled .eqv. t%enabled ) then
+             layers = layers + 1
+          end if
+       else
+          layers = layers + 1
+       end if
        t => t%child
     end do
   end function layers
@@ -614,4 +647,74 @@ contains
     
   end subroutine grid_delete_layer
 
+  subroutine grid_onoff_layer(in_grid,onoff,layer)
+    type(mg_grid), intent(inout), target :: in_grid
+    logical, intent(in) :: onoff
+    integer, intent(in), optional :: layer
+    integer :: llayer
+    type(mg_grid), pointer :: grid
+
+    grid => in_grid
+    llayer = -1
+    if ( present(layer) ) llayer = layer
+    if ( llayer < 0 ) then
+       llayer = layers(in_grid) + 1 + llayer
+    end if
+
+    ! we can't kill the first one...
+    if ( llayer == 0 ) return
+    
+    do while ( llayer > 1 )
+       grid => grid%child
+       if ( .not. associated(grid) ) return
+
+       llayer = llayer - 1
+
+    end do
+
+    ! delete the grid
+    grid%enabled = onoff
+    
+  end subroutine grid_onoff_layer
+
+  function grid_sum(grid) result(sum)
+    type(mg_grid), intent(in) :: grid
+    real(grid_p) :: sum
+    real(grid_p), pointer :: V(:,:,:)
+    integer :: x,y,z
+
+    V => grid%V
+
+    sum = 0._grid_p
+    do z = 1 , grid%n(3)
+    do y = 1 , grid%n(2)
+    do x = 1 , grid%n(1)
+       sum = sum + abs(V(x,y,z))
+    end do
+    end do
+    end do
+  end function grid_sum
+
+  function grid_layer(grid,layer) result(lg)
+    type(mg_grid), intent(in), target :: grid
+    integer, intent(in) :: layer
+    type(mg_grid), pointer :: lg
+    integer :: ll
+    lg => grid
+    ll = layer
+    if ( ll < 1 ) ll = layers(grid,enabled=.true.) + 1 + ll
+
+    if ( ll == 0 ) return
+    
+    do while ( ll > 1 )
+       if ( .not. associated(lg%child) ) return
+       lg => lg%child
+
+       ll = ll - 1
+
+    end do
+    print *,'returning:',lg%layer
+
+  end function grid_layer
+    
 end module t_mg

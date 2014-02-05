@@ -42,19 +42,27 @@ contains
     ! create the format string
     write(fmt,'(a,i0,a)') '(',grid%n(1),'(e12.6,tr1))'
     
+    fmt = '(e12.6)'
+
     ! write cube data...
     if ( grid%n(3) == 1 ) then
-       write(io,fmt) (0._grid_p,i=1,grid%n(1))
+       do i = 1 , grid%n(2) * grid%n(3)
+          write(io,fmt) 0._grid_p
+       end do
     end if
        
-    do z = 1 , grid%n(3)
+    do x = 1 , grid%n(1)
        do y = 1 , grid%n(2)
-          write(io,fmt) V(:,y,z)
+          do z = 1 , grid%n(3)
+             write(io,fmt) V(x,y,z)
+          end do
        end do
     end do
-    
+
     if ( grid%n(3) == 1 ) then
-       write(io,fmt) (0._grid_p,i=1,grid%n(1))
+       do i = 1 , grid%n(1) * grid%n(2)
+          write(io,fmt) 0._grid_p
+       end do
     end if
 
     close(io)

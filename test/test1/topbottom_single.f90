@@ -15,13 +15,14 @@ program topbottom_single
   type(mg_grid), target :: top
 
   integer :: N , nn(3)
+  real :: t1, t2
   real(dp) :: cell(3,3), ll(3)
   real(grid_p) :: tol, sor
 
   ! tolerance for the convergence
   tol = 1.e-9_grid_p
   ! over-relaxation parameter
-  sor = 1.2_grid_p
+  sor = 1.3_grid_p
 
   ! initialize the initial grid
   cell(:,1) = (/2._dp,0._dp,0._dp/)
@@ -38,9 +39,9 @@ program topbottom_single
   write(*,*)'  >> Add all the boxes...'
   cell(:,3) = cell(:,3) / 10._grid_p
   ll = 0._dp
-  call grid_add_box(top, ll, cell,  1._grid_p, .true.)
+  call grid_add_box(top, ll, cell, 1._grid_p, 1._grid_p, .true.)
   ll(3) = 3._dp - cell(3,3)
-  call grid_add_box(top, ll, cell,  -1._grid_p, .true.)
+  call grid_add_box(top, ll, cell, -1._grid_p, 1._grid_p, .true.)
 
   call print_grid(top)
 
@@ -52,7 +53,13 @@ program topbottom_single
   ! write out the initial cube file
   call write_cube('initial_single',top)
 
+  CALL CPU_TIME(t1)
+
   call mg_gs_cds(top)
+
+  CALL CPU_TIME(t2)
+
+  print *,'Timing:', t2-t1
 
   call write_cube('test_single',top)
   
