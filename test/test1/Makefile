@@ -25,11 +25,11 @@ dep:
 		*.f90 *.F90
 
 test1: topbottom.o
-	$(FC) -o $@ $^ $(LIB_TEST_NAME) $(LIB_NAME)
+	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME)
 	./$@
 
 test2: topbottom_single.o
-	$(FC) -o $@ $^ $(LIB_TEST_NAME) $(LIB_NAME)
+	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME)
 	./$@
 
 clean:

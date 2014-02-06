@@ -9,6 +9,8 @@ FFLAGS= -O0 -g -check bounds -traceback -fp-model strict -I$(INTEL_PATH)/mkl/inc
 
 #FFLAGS=-O1 -fp-model strict -I$(INTEL_PATH)/mkl/include -I$(INTEL_PATH)/mkl/include/intel64/lp64 -mkl=sequential $(INC_PATH)
 
+FFLAGS += -openmp
+
 ARFLAGS = cru
 
 .F90.o:

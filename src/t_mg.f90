@@ -70,11 +70,6 @@ contains
     ! note that cell is the cell-size for the total cell
     grid%n = n
     do i = 1 , 3
-       ! We need to set the grid size according to the algorithm 
-       ! for proper grids below
-       if ( mod(grid%n(i),2) /= 1 ) then
-          grid%n(i) = grid%n(i) - 1
-       end if
 
        celll(i) = &
             cell(1,i) ** 2 + &
@@ -167,7 +162,7 @@ contains
       integer :: i
 
       do i = 1 , 3
-         n(i) = (grid%n(i) + 1) / 2
+         n(i) = (grid%n(i) + mod(grid%n(i),2)) / 2 - 1
          if ( n(i) < 7 ) then
             n(:) = 0
             return
@@ -294,6 +289,8 @@ contains
     V => grid%V
 
     ! set all boxes to their values if constant
+!$OMP parallel do default(shared) private(x,y,z) &
+!$OMP    collapse(3)
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
@@ -303,6 +300,7 @@ contains
     end do
     end do
     end do
+!$OMP end parallel do
 
   end subroutine grid_setup
 
@@ -366,10 +364,13 @@ contains
     Vc => child%V
 
     ! initialize the child
+!$OMP parallel workshare
     Vc = 0._grid_p
+!$OMP end parallel workshare
 
     ! we employ full-weighting
 
+!$OMP parallel do default(shared) private(x,px,y,py,z,pz)
     do z = 2 , grid%n(3) - 1 , 2
     pz = z / 2 
     do y = 2 , grid%n(2) - 1 , 2
@@ -446,8 +447,11 @@ contains
     Vp => parent%V
 
     ! initialize the parent to zero
+!$OMP parallel workshare
     Vp = 0._grid_p
+!$OMP end parallel workshare
 
+!$OMP parallel do default(shared) private(x,px,y,py,z,pz,v2,v4,v8)
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( parent%n(3) <= pz + 1 ) cycle
@@ -500,6 +504,7 @@ contains
     end do
     end do
     end do
+!$OMP end parallel do
 
     ! we still need the border
 
@@ -694,6 +699,22 @@ contains
     end do
     end do
   end function grid_sum
+
+  function grid_non_constant_elem(grid) result(elem)
+    type(mg_grid), intent(in) :: grid
+    integer :: x,y,z,elem
+
+    elem = 0
+    do z = 1 , grid%n(3)
+    do y = 1 , grid%n(2)
+    do x = 1 , grid%n(1)
+       if ( .not. is_constant(grid,x,y,z) ) then
+          elem = elem + 1
+       end if
+    end do
+    end do
+    end do
+  end function grid_non_constant_elem
 
   function grid_layer(grid,layer) result(lg)
     type(mg_grid), intent(in), target :: grid

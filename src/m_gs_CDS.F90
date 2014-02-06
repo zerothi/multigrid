@@ -126,7 +126,7 @@ contains
 
     if ( .not. grid%enabled ) return
 
-    nr = 1._grid_p / (grid%n(1)*grid%n(2)*grid%n(3))
+    nr = 1._grid_p / (grid_non_constant_elem(grid))
 
     tol = grid%tol + 1._grid_p
     
@@ -144,7 +144,7 @@ contains
        ! the tolerance is the difference between the 
        ! sum of the before iteration and the new iteration
        new_sum = grid_sum(grid) ! * nr
-       tol = abs(old_sum - new_sum)
+       tol = abs(old_sum - new_sum) * nr
        old_sum = new_sum
        print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum
 
@@ -326,6 +326,8 @@ contains
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
+!$OMP parallel do default(shared) collapse(3) &
+!$OMP   private(x,y,z) firstprivate(sor)
     do z = 2 , grid%n(3) - 1
        do y = 2 , grid%n(2) - 1
           do x = 2 , grid%n(1) - 1
@@ -334,6 +336,7 @@ contains
           end do
        end do
     end do
+!$OMP end parallel do
     
   end subroutine gs
 
@@ -378,11 +381,14 @@ contains
 !    end do
 !    call gs_corner(a,sor,V,x,grid%n(2),1, dx,-1,1,tol)
 
+!$OMP parallel do default(shared) collapse(2) &
+!$OMP   private(y,z) firstprivate(sor,x)
     do z = 2 , grid%n(3) - 1
        do y = 2 , grid%n(2) - 1
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_xb(grid,V,x,y,z,dx)
        end do
     end do
+!$OMP end parallel do
 
     ! x-corners
 !    call gs_corner(a,sor,V,x,      1,grid%n(3), dx, 1,-1,tol)
@@ -431,11 +437,14 @@ contains
 !    call gs_corner(grid,sor,V,      1,y,1,  1,dy,1,tol)
 !    call gs_corner(grid,sor,V,grid%n(1),y,1, -1,dy,1,tol)
     
+!$OMP parallel do default(shared) collapse(2) &
+!$OMP   private(x,z) firstprivate(sor,y)
     do z = 2 , grid%n(3) - 1
        do x = 2 , grid%n(1) - 1
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_yb(grid,V,x,y,z,dy)
        end do
     end do
+!$OMP end parallel do
 
 !    ! y-corners
 !    call gs_corner(grid,sor,V,      1,y,grid%n(3),  1,dy,-1,tol)
@@ -466,11 +475,14 @@ contains
 !    call gs_corner(grid,sor,V,      1,1,z,  1,1,dz,tol)
 !    call gs_corner(grid,sor,V,grid%n(1),1,z, -1,1,dz,tol)
     
+!$OMP parallel do default(shared) collapse(2) &
+!$OMP   private(x,y) firstprivate(sor,z)
     do y = 2 , grid%n(2) - 1
        do x = 2 , grid%n(1) - 1
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_zb(grid,V,x,y,z,dz)
        end do
     end do
+!$OMP end parallel do
 
 !    ! z-corners
 !    call gs_corner(grid,sor,V,      1,grid%n(2),z,  1,-1,dz,tol)
@@ -497,7 +509,7 @@ contains
     V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
   end subroutine gs_corner
 
- function val(grid,V,x,y,z)
+  pure function val(grid,V,x,y,z)
     type(mg_grid), intent(in) :: grid
     real(grid_p), intent(in) :: V(:,:,:)
     integer, intent(in) :: x,y,z

@@ -22,15 +22,15 @@ program topbottom_single
   ! tolerance for the convergence
   tol = 1.e-9_grid_p
   ! over-relaxation parameter
-  sor = 1.3_grid_p
+  sor = 1.8_grid_p
 
   ! initialize the initial grid
-  cell(:,1) = (/2._dp,0._dp,0._dp/)
-  cell(:,2) = (/0._dp,2._dp,0._dp/)
-  cell(:,3) = (/0._dp,0._dp,3._dp/)
+  cell(:,1) = (/12._dp,0._dp,0._dp/)
+  cell(:,2) = (/0._dp,12._dp,0._dp/)
+  cell(:,3) = (/0._dp,0._dp,30._dp/)
 
   ! we create it to be 100x100x100
-  nn = 100
+  nn = 200
   ! create grid
   call init_grid(top,nn,cell,1,2,tol=tol,sor=sor)
 

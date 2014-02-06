@@ -21,21 +21,22 @@ program topbottom
 
   ! tolerance for the convergence
   tol = 1.e-9_grid_p
+  sor = 1.8_grid_p
 
   ! initialize the initial grid
-  cell(:,1) = (/2._dp,0._dp,0._dp/)
-  cell(:,2) = (/0._dp,2._dp,0._dp/)
-  cell(:,3) = (/0._dp,0._dp,3._dp/)
+  cell(:,1) = (/12._dp,0._dp,0._dp/)
+  cell(:,2) = (/0._dp,12._dp,0._dp/)
+  cell(:,3) = (/0._dp,0._dp,30._dp/)
 
   ! we create it to be 100x100x100
-  nn = 100
+  nn = 200
   ! create grid
   call init_grid(top,nn,cell,1,2,tol=tol)
 
   write(*,*)'>> Created initial grid...'
 
   ! create all children
-  call init_grid_children_half(top,max_layer=3)
+  call init_grid_children_half(top,max_layer=4)
 
   ! manually set the sor-parameter
   call grid_set(top,layer=1,sor=1.2_grid_p)
@@ -45,7 +46,7 @@ program topbottom
   call grid_set(top,layer=5,sor=1.4_grid_p)
 
   do N = 1 , layers(top)
-     call grid_set(top,layer=N,sor=1.3_grid_p,tol=tol*10**(2*N))
+     call grid_set(top,layer=N,sor=sor,tol=tol*10**N)
      !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
   call grid_set(top,layer=1,tol=tol)
