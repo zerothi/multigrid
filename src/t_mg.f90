@@ -368,14 +368,16 @@ contains
     child => grid%child
     Vc => child%V
 
+!$OMP parallel default(shared) private(x,px,y,py,z,pz)
+
     ! initialize the child
-!$OMP parallel workshare
+!$OMP workshare
     Vc = 0._grid_p
-!$OMP end parallel workshare
+!$OMP end workshare
 
     ! we employ full-weighting
 
-!$OMP parallel do default(shared) private(x,px,y,py,z,pz)
+!$OMP do
     do z = 2 , grid%n(3) - 1 , 2
     pz = z / 2 
     do y = 2 , grid%n(2) - 1 , 2
@@ -421,7 +423,9 @@ contains
     end do
     end do
     end do
-!$OMP end parallel do
+!$OMP end do
+
+!$OMP end parallel
 
     ! we still need the border...
 
@@ -452,11 +456,13 @@ contains
     Vp => parent%V
 
     ! initialize the parent to zero
-!$OMP parallel workshare
-    Vp = 0._grid_p
-!$OMP end parallel workshare
+!$OMP parallel default(shared) private(x,px,y,py,z,pz,v2,v4,v8)
 
-!$OMP parallel do default(shared) private(x,px,y,py,z,pz,v2,v4,v8)
+!$OMP workshare
+    Vp = 0._grid_p
+!$OMP end workshare
+
+!$OMP do 
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( parent%n(3) <= pz + 1 ) cycle
@@ -509,7 +515,9 @@ contains
     end do
     end do
     end do
-!$OMP end parallel do
+!$OMP end do
+
+!$OMP end parallel
 
     ! we still need the border
 
