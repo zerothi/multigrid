@@ -21,7 +21,7 @@ dep:
 	done
 
 # Grid objects
-OBJS = m_cube.o m_mg_info.o
+OBJS = m_cube.o m_mg_info.o m_time.o
 
 LIB_TEST_NAME?=libmg_test.a
 $(LIB_TEST_NAME): $(OBJS)

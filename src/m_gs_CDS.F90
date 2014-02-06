@@ -35,10 +35,10 @@ contains
 !       !grid => grid_layer(top_grid,layer=-2)
 !       n = grid%n / 2
 !       print *, layers(grid,enabled=.true.)
-!       tol = grid%tol + 1._grid_p
+!       tol = grid_tolerance(grid) + 1._grid_p
 !       old_itt = grid%itt
 !       old_sum = grid_sum(grid)! * nr
-!       do while ( tol > grid%tol ) 
+!       do while ( tol > grid_tolerance(grid) ) 
 !
 !          ! initialize the tolerance and step iteration
 !          grid%itt = grid%itt + 1
@@ -128,13 +128,13 @@ contains
 
     nr = 1._grid_p / (grid_non_constant_elem(grid))
 
-    tol = grid%tol + 1._grid_p
+    tol = grid_tolerance(grid) + 1._grid_p
     
     old_sum = grid_sum(grid) ! * nr
 
     old_itt = grid%itt
 
-    do while ( tol > grid%tol ) 
+    do while ( tol > grid_tolerance(grid) ) 
 
        ! initialize the tolerance and step iteration
        grid%itt = grid%itt + 1
@@ -146,7 +146,7 @@ contains
        new_sum = grid_sum(grid) ! * nr
        tol = abs(old_sum - new_sum) * nr
        old_sum = new_sum
-       print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum
+       print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum,grid_tolerance(grid)
 
        ! print out number of iterations used on that cycle
        !write(*,'(2(a,i0),a)') &

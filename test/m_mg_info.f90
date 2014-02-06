@@ -21,7 +21,7 @@ contains
     write(*,*) '*******************************************'
     do while ( associated(grid) )
        write(*,trim(fmt)//'a,i0,a,3(i4,tr1))')' -- Layer: ',grid%layer,' size: ',grid%n
-       write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid%tol
+       write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid_tolerance(grid)
        write(*,trim(fmt)//'a,e10.3)')' -- SOR: ',grid%sor
        write(*,trim(fmt)//'a,3(tr1,e10.4))')' -- a(3): ',grid%a
        do j = 1 , grid%N_box

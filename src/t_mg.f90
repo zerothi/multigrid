@@ -232,6 +232,8 @@ contains
     urc = llc + box_cell(:,1) + box_cell(:,2) + box_cell(:,3)
     ! TODO currently this does not work with skewed axis
 
+
+!$OMP parallel do default(shared) private(x,y,z,xyz,dyz,dz)
     do z = 0 , grid%n(3) - 1
     dz  = grid%dL(:,3) * z + offset ! we immediately add the offset
     do y = 0 , grid%n(2) - 1
@@ -242,12 +244,15 @@ contains
           ! check that the point also
           ! lies inside on the right borders
           if ( all(xyz <= urc) ) then
+!$OMP critical
              call insert_point(box%place,x,y,z)
+!$OMP end critical
           end if
        end if
     end do
     end do
     end do
+!$OMP end parallel do
 
     ! if not present, simply delete it...
     if ( all(box%place(1,:) == huge(0)) .and. &
@@ -416,8 +421,8 @@ contains
     end do
     end do
     end do
+!$OMP end parallel do
 
-    print *,sum(Vc),sum(V)
     ! we still need the border...
 
     ! re-instantiate the constant fields
@@ -589,17 +594,6 @@ contains
          z <= box%place(2,3)
   end function in_box
 
-  pure function tolerance(old_tol,Vcur,Vnew) result(tol)
-    real(grid_p), intent(in) :: old_tol, Vcur, Vnew
-    real(grid_p) :: tol
-    if ( Vcur == 0._grid_p ) then
-       tol = old_tol
-    else
-       tol = max(old_tol,abs((Vnew-Vcur)/Vcur))
-    end if
-  end function tolerance
-
-
   function layers(grid,enabled)
     type(mg_grid), intent(in) :: grid
     logical, intent(in), optional :: enabled
@@ -691,6 +685,8 @@ contains
     V => grid%V
 
     sum = 0._grid_p
+!$OMP parallel do default(shared) private(x,y,z) &
+!$OMP   reduction(+:sum) collapse(3)
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
@@ -698,6 +694,8 @@ contains
     end do
     end do
     end do
+!$OMP end parallel do
+
   end function grid_sum
 
   function grid_non_constant_elem(grid) result(elem)
@@ -705,6 +703,8 @@ contains
     integer :: x,y,z,elem
 
     elem = 0
+!$OMP parallel do default(shared) private(x,y,z) &
+!$OMP   reduction(+:elem) collapse(3)
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
@@ -714,6 +714,8 @@ contains
     end do
     end do
     end do
+!$OMP end parallel do
+
   end function grid_non_constant_elem
 
   function grid_layer(grid,layer) result(lg)
@@ -737,5 +739,18 @@ contains
     print *,'returning:',lg%layer
 
   end function grid_layer
-    
+
+  function grid_tolerance(grid) result(tol)
+    type(mg_grid), intent(in) :: grid
+    real(grid_p) :: tol, vmax,vmin
+    integer :: i
+    vmax = -huge(0._grid_p)
+    vmin =  huge(0._grid_p)
+    do i = 1 , grid%N_box
+       vmin = min(vmin,grid%box(i)%val)
+       vmax = max(vmax,grid%box(i)%val)
+    end do
+    tol = grid%tol * abs(vmax - vmin) / grid_non_constant_elem(grid)
+  end function grid_tolerance
+
 end module t_mg

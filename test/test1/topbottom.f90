@@ -6,6 +6,7 @@ program topbottom
   ! test libraries
   use m_cube
   use m_mg_info
+  use m_time
 
   implicit none
 
@@ -14,13 +15,15 @@ program topbottom
   ! the top multi-grid type
   type(mg_grid), target :: top
 
-  integer :: N , nn(3)
-  real :: t1, t2
+  integer :: N , nn(3), c1
+  real :: time
   real(dp) :: cell(3,3), ll(3)
   real(grid_p) :: tol, sor
 
+  call init_timing()
+
   ! tolerance for the convergence
-  tol = 1.e-9_grid_p
+  tol = 1.e-2_grid_p
   sor = 1.8_grid_p
 
   ! initialize the initial grid
@@ -29,7 +32,7 @@ program topbottom
   cell(:,3) = (/0._dp,0._dp,30._dp/)
 
   ! we create it to be 100x100x100
-  nn = 200
+  nn = 60
   ! create grid
   call init_grid(top,nn,cell,1,2,tol=tol)
 
@@ -46,7 +49,7 @@ program topbottom
   call grid_set(top,layer=5,sor=1.4_grid_p)
 
   do N = 1 , layers(top)
-     call grid_set(top,layer=N,sor=sor,tol=tol*10**N)
+     !call grid_set(top,layer=N,sor=sor,tol=tol)
      !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
   call grid_set(top,layer=1,tol=tol)
@@ -70,13 +73,13 @@ program topbottom
   ! write out the initial cube file
   call write_cube('initial',top)
 
-  CALL CPU_TIME(t1)
+  c1 = clock()
 
   call mg_gs_cds(top)
 
-  CALL CPU_TIME(t2)
+  time = timing(c1)
 
-  print *,'Timing:', t2-t1
+  print *,'Timing:', time
 
   call write_cube('test',top)
   
