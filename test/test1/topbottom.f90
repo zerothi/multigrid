@@ -69,15 +69,26 @@ program topbottom
   call grid_setup(top)
 
   ! write out the initial cube file
-  call write_cube('initial',top)
+!  call write_cube('initial',top)
 
   c1 = clock()
 
-  call mg_gs_cds(top)
+  call mg_gs_cds(top,method=CDS_BOTTOM_UP)
 
   time = timing(c1)
 
-  print *,'Timing:', time
+  print *,'Timing - BU:', time
+
+  top%V = 0._grid_p
+  call grid_setup(top)
+
+  c1 = clock()
+
+  call mg_gs_cds(top,method=CDS_W_CYCLE)
+
+  time = timing(c1)
+
+  print *,'Timing - W: ', time
 
   call write_cube('test',top)
   

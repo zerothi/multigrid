@@ -63,7 +63,7 @@ contains
     ! ensure it is empty
     call delete_grid(grid)
 
-    grid%steps = 3
+    grid%steps = 4
 
     ! create the ax, ay, az pre-factors for the 3D Poisson solver
     ! note that cell is the cell-size for the total cell
@@ -177,10 +177,10 @@ contains
 
   end subroutine init_grid_children_half
 
-  subroutine grid_set(grid,sor,tol,layer)
+  subroutine grid_set(grid,sor,tol,layer,steps)
     type(mg_grid), intent(inout), target :: grid
     real(grid_p), intent(in), optional :: sor, tol
-    integer, intent(in), optional :: layer
+    integer, intent(in), optional :: layer, steps
 
     type(mg_grid), pointer :: tmp_grid
 
@@ -195,6 +195,8 @@ contains
          tmp_grid%sor = sor
     if ( present(tol) ) &
          tmp_grid%tol = tol
+    if ( present(steps) ) &
+         tmp_grid%steps = steps
   end subroutine grid_set
 
   recursive subroutine grid_add_box(grid, llc, box_cell, val, rho, constant)
