@@ -5,7 +5,8 @@
 include ../arch.make
 
 # The phony list
-.PHONY: default deb clean
+TESTS=test1 test2 test3
+.PHONY: default lib deb clean all $(TESTS)
 
 # We need to add the src-directory to the sources
 FFLAGS += -I../src
@@ -24,15 +25,22 @@ dep:
 OBJS = m_cube.o m_mg_info.o m_time.o
 
 LIB_TEST_NAME?=libmg_test.a
+lib: $(LIB_TEST_NAME)
 $(LIB_TEST_NAME): $(OBJS)
 	$(AR) $(ARFLAGS) $(LIB_TEST_NAME) $(OBJS)
 	-$(RANLIB) $(LIB_TEST_NAME)
 
 
-all: $(LIB_TEST_NAME)
-	for d in */ ; do \
-		(cd $$d ; $(MAKE)) ; \
-	done
+all: $(LIB_TEST_NAME) $(TESTS)
+
+test1:
+	(cd $@ ; $(MAKE))
+
+test2:
+	(cd $@ ; $(MAKE))
+
+test3:
+	(cd $@ ; $(MAKE))
 
 clean:
 	rm -f $(OBJS) *.mod *.MOD

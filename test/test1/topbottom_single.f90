@@ -17,13 +17,13 @@ program topbottom_single
 
   integer :: N , nn(3), c1
   real :: time
-  real(dp) :: cell(3,3), ll(3)
+  real(dp) :: cell(3,3), bcell(3,3), ll(3)
   real(grid_p) :: tol, sor
 
   call init_timing()
 
   ! tolerance for the convergence
-  tol = 1.e-2_grid_p
+  tol = 1.e-3_grid_p
   ! over-relaxation parameter
   sor = 1.8_grid_p
 
@@ -33,24 +33,24 @@ program topbottom_single
   cell(:,3) = (/0._dp,0._dp,30._dp/)
 
   ! we create it to be 100x100x100
-  nn = 60
+  nn = 200
   ! create grid
-  call init_grid(top,nn,cell,1,2,tol=tol,sor=sor)
+  call init_grid(top,nn,cell,2,tol=tol,sor=sor)
 
   write(*,*)'>> Created initial grid...'
 
   write(*,*)'  >> Add all the boxes...'
-  cell(:,3) = cell(:,3) / 10._grid_p
+  bcell(:,:) = cell(:,:)
+  bcell(:,3) = cell(:,3) / 10._grid_p
   ll = 0._dp
-  call grid_add_box(top, ll, cell, 1._grid_p, 1._grid_p, .true.)
-  ll(3) = 3._dp - cell(3,3)
-  call grid_add_box(top, ll, cell, -1._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 1._grid_p, 1._grid_p, .true.)
+  ll(3) = cell(3,3) - bcell(3,3)
+  call grid_add_box(top, ll, bcell, -1._grid_p, 1._grid_p, .true.)
 
   call print_grid(top)
 
   ! initialize the grid
   call grid_bring_back(top)
-  top%V = 0._grid_p
   call grid_setup(top)
 
   ! write out the initial cube file

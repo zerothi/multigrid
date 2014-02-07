@@ -17,7 +17,7 @@ program topbottom
 
   integer :: N , nn(3), c1
   real :: time
-  real(dp) :: cell(3,3), bcell(3,3), ll(3)
+  real(dp) :: cell(3,3), ll(3), bcell(3,3)
   real(grid_p) :: tol, sor
 
   call init_timing()
@@ -34,7 +34,7 @@ program topbottom
   ! we create it to be 100x100x100
   nn = 200
   ! create grid
-  call init_grid(top,nn,cell,2,tol=tol)
+  call init_grid(top,nn,cell,3,tol=tol)
 
   write(*,*)'>> Created initial grid...'
 
@@ -42,26 +42,40 @@ program topbottom
   call init_grid_children_half(top,max_layer=4)
 
   ! manually set the sor-parameter
-  call grid_set(top,layer=1,sor=1.2_grid_p)
-  call grid_set(top,layer=2,sor=1.6_grid_p)
-  call grid_set(top,layer=3,sor=1.6_grid_p)
-  call grid_set(top,layer=4,sor=1.5_grid_p)
-  call grid_set(top,layer=5,sor=1.4_grid_p)
+  call grid_set(top,layer=1,sor=1.8_grid_p)
+  call grid_set(top,layer=2,sor=1.8_grid_p)
+  call grid_set(top,layer=3,sor=1.8_grid_p)
+  call grid_set(top,layer=4,sor=1.8_grid_p)
+  call grid_set(top,layer=5,sor=1.8_grid_p)
 
   do N = 1 , layers(top)
      call grid_set(top,layer=N,sor=sor,tol=tol)
+     !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
+  call grid_set(top,layer=1,tol=tol)
 
   write(*,*)' >> Created all children...'
 
   write(*,*)'  >> Add all the boxes...'
-  bcell(:,:) = cell(:,:)
-  bcell(:,3) = cell(:,3) / 10._grid_p
-  ll = 0._dp
+  ! The "electrodes"
+  bcell(:,:) = cell(:,:) / 3._dp
+  bcell(3,3) = cell(3,3) / 10._dp
+  ll = (/ &
+       cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
+       cell(2,2) / 2._dp - bcell(2,2) / 2._dp , &
+       0._dp /)
   call grid_add_box(top, ll, bcell, 1._grid_p, 1._grid_p, .true.)
   ll(3) = cell(3,3) - bcell(3,3)
   call grid_add_box(top, ll, bcell, -1._grid_p, 1._grid_p, .true.)
-
+  ! add the constriction
+  bcell(:,1:2) = bcell(:,1:2) / 3._dp
+  bcell(3,3)   = cell(3,3) - bcell(3,3) * 2._dp
+  ll = (/ &
+       cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
+       cell(2,2) / 2._dp - bcell(2,2) / 2._dp , &
+       cell(3,3) / 10._dp /)
+  call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
+  
   call print_grid(top)
 
   ! initialize the grid

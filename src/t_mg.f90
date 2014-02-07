@@ -48,11 +48,10 @@ module t_mg
 
 contains
 
-  subroutine init_grid(grid, n, cell, layer, boxes, tol, offset, sor)
+  subroutine init_grid(grid, n, cell, boxes, tol, offset, sor)
     type(mg_grid), intent(inout) :: grid
     integer,       intent(in)    :: n(3)
     real(dp),      intent(in)    :: cell(3,3)
-    integer,       intent(in)    :: layer
     integer,       intent(in)    :: boxes
     real(grid_p),  intent(in), optional :: tol
     real(dp),      intent(in), optional :: offset(3)
@@ -89,7 +88,11 @@ contains
 
     grid%enabled = .true.
     ! set the values for the grid...
-    grid%layer  = layer
+    if ( associated(grid%parent) ) then
+       grid%layer = grid%parent%layer + 1
+    else
+       grid%layer = 1
+    end if
     grid%offset = 0._grid_p
     if ( present(offset) ) grid%offset = offset
 
@@ -115,7 +118,8 @@ contains
     grid%a(1) = celll(2) * celll(3) * tmp
     grid%a(2) = celll(1) * celll(3) * tmp
     grid%a(3) = celll(1) * celll(2) * tmp
-    grid%a = grid%a / sum(grid%a)
+
+!    grid%a = grid%a / sum(grid%a)
     grid%a = 1._grid_p
 
     ! pre-allocate room for the boxes
@@ -147,7 +151,7 @@ contains
        grid%child => tmp_grid
        tmp_grid%parent => grid
        call init_grid(tmp_grid,n, &
-            grid%cell, grid%layer+1, grid%N_box, &
+            grid%cell, grid%N_box, &
             tol=grid%tol, offset=grid%offset, sor=grid%sor)
        grid => tmp_grid
        call new_grid_size(grid,n)
@@ -327,6 +331,12 @@ contains
     allocate(grid%V(grid%n(1),grid%n(2),grid%n(3)))
     allocate(grid%g(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
     allocate(grid%g_s(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
+
+!$OMP parallel workshare default(shared)
+    grid%V   = 0._grid_p
+    grid%g   = 0._grid_p
+    grid%g_s = 0._grid_p
+!$OMP end parallel workshare
 
   end subroutine grid_bring_back
 
@@ -585,7 +595,7 @@ contains
   subroutine delete_box(box)
     type(mg_box), intent(inout) :: box
     box%place = 0
-    box%val = 1._grid_p
+    box%val = 0._grid_p
     box%rho = 1._grid_p
     box%constant = .false.
   end subroutine delete_box
@@ -758,7 +768,7 @@ contains
        vmin = min(vmin,grid%box(i)%val)
        vmax = max(vmax,grid%box(i)%val)
     end do
-    tol = grid%tol * abs(vmax - vmin) / grid_non_constant_elem(grid)
+    tol = grid%tol * abs(vmax - vmin) / maxval(grid%n) !grid_non_constant_elem(grid)
   end function grid_tolerance
 
 end module t_mg
