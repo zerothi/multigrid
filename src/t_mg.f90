@@ -13,6 +13,7 @@ module t_mg
      real(dp)     :: offset(3) ! the offset of the placement of the local grid 
      real(dp)     :: cell(3,3) ! the cell for the local grid
      real(dp)     :: dL(3,3) ! the cell stepping
+     real(dp)     :: dLL(3) ! the voxel side lengths
      real(dp)     :: dVol ! volume of voxel
      real(dp)     :: Vol  ! volume of cell
      integer      :: n(3) ! size in each direction
@@ -77,7 +78,10 @@ contains
        celll(i) = celll(i) ! / grid%n(i)
        grid%dL(:,i) = cell(:,i) / grid%n(i)
     end do
-
+    do i = 1 , 3
+       grid%dLL(i) = sum(grid%dL(i,:))
+    end do
+    
     grid%Vol = ( cell(2,1)*cell(3,2) - cell(3,1)*cell(2,2) ) * cell(1,3) + &
          ( cell(3,1)*cell(1,2) - cell(1,1)*cell(3,2) ) * cell(2,3) + &
          ( cell(1,1)*cell(2,2) - cell(2,1)*cell(1,2) ) * cell(3,3)
@@ -474,6 +478,104 @@ contains
     Vp = 0._grid_p
 !$OMP end workshare
 
+    ! ensure to set the top corners correctly
+
+    z  = 1
+    pz = 1
+!$OMP do 
+    do y = 1 , grid%n(2)
+    py = 2 * y
+    if ( parent%n(2) <= py + 1 ) cycle
+    do x = 1 , grid%n(1)
+       px = 2 * x
+       if ( parent%n(1) <= px + 1 ) cycle
+
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v8
+       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v8
+       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v8
+       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v8
+
+       ! middles
+       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v8
+       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v8
+       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v8
+       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v8
+
+       ! neighbours
+       Vp(px,py,pz) = Vp(px,py,pz) + v8
+
+    end do
+    end do
+!$OMP end do
+
+    y  = 1
+    py = 1
+!$OMP do 
+    do z = 1 , grid%n(3)
+    pz = 2 * z
+    if ( parent%n(3) <= pz + 1 ) cycle
+    do x = 1 , grid%n(1)
+       px = 2 * x
+       if ( parent%n(1) <= px + 1 ) cycle
+
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v8
+       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v8
+       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v8
+       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v8
+
+       ! middles
+       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v8
+       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v8
+       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v8
+       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v8
+
+       ! neighbours
+       Vp(px,py,pz) = Vp(px,py,pz) + v8
+
+    end do
+    end do
+!$OMP end do
+
+    x  = 1
+    px = 1
+!$OMP do 
+    do z = 1 , grid%n(3)
+    pz = 2 * z
+    if ( parent%n(3) <= pz + 1 ) cycle
+    do y = 1 , grid%n(2)
+       py = 2 * y
+       if ( parent%n(2) <= py + 1 ) cycle
+
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v8
+       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v8
+       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v8
+       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v8
+
+       ! middles
+       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v8
+       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v8
+       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v8
+       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v8
+
+       ! neighbours
+       Vp(px,py,pz) = Vp(px,py,pz) + v8
+
+    end do
+    end do
+!$OMP end do
+    
 !$OMP do 
     do z = 1 , grid%n(3)
     pz = 2 * z
@@ -525,6 +627,223 @@ contains
        Vp(px,py,pz)   = V(x,y,z)
 
     end do
+    end do
+    end do
+!$OMP end do
+
+    z = grid%n(3)
+    pz = parent%n(3)
+    if ( z * 2 /= pz ) then
+!$OMP do 
+    do y = 1 , grid%n(2)
+    py = 2 * y
+    if ( parent%n(2) <= py + 1 ) cycle
+    do x = 1 , grid%n(1)
+       px = 2 * x
+       if ( parent%n(1) <= px + 1 ) cycle
+
+       v2 = f2 * V(x,y,z)
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px-1,py-1,pz-1) = Vp(px-1,py-1,pz-1) + v8
+       Vp(px-1,py+1,pz-1) = Vp(px-1,py+1,pz-1) + v8
+       Vp(px+1,py-1,pz-1) = Vp(px+1,py-1,pz-1) + v8
+       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v8
+
+       ! middles
+       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v4
+       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v4
+       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v4
+       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v4
+       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v4
+       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v4
+       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v4
+       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v4
+
+       ! neighbours
+       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v2
+       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v2
+       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v2
+       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v2
+       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v2
+
+    end do
+    end do
+!$OMP end do
+    end if
+!$OMP do 
+    do y = 1 , grid%n(2)
+    py = 2 * y
+    if ( parent%n(2) <= py + 1 ) cycle
+    do x = 1 , grid%n(1)
+       px = 2 * x
+       if ( parent%n(1) <= px + 1 ) cycle
+
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v8
+       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v8
+       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v8
+       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v8
+
+       ! middles
+       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v8
+       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v8
+       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v8
+       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v8
+
+       ! neighbours
+       Vp(px,py,pz) = Vp(px,py,pz) + v8
+
+    end do
+    end do
+!$OMP end do
+
+
+    y = grid%n(2)
+    py = parent%n(2)
+    if ( y * 2 /= py ) then
+!$OMP do 
+    do z = 1 , grid%n(3)
+    pz = 2 * z
+    if ( parent%n(3) <= pz + 1 ) cycle
+    do x = 1 , grid%n(1)
+       px = 2 * x
+       if ( parent%n(1) <= px + 1 ) cycle
+
+       v2 = f2 * V(x,y,z)
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px-1,py-1,pz-1) = Vp(px-1,py-1,pz-1) + v8
+       Vp(px-1,py-1,pz+1) = Vp(px-1,py-1,pz+1) + v8
+       Vp(px+1,py-1,pz-1) = Vp(px+1,py-1,pz-1) + v8
+       Vp(px+1,py-1,pz+1) = Vp(px+1,py-1,pz+1) + v8
+
+       ! middles
+       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v4
+       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v4
+       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v4
+       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v4
+       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v4
+       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v4
+       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v4
+       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v4
+
+       ! neighbours
+       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v2
+       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v2
+       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v2
+       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v2
+       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v2
+
+    end do
+    end do
+!$OMP end do
+    end if
+!$OMP do 
+    do z = 1 , grid%n(3)
+    pz = 2 * z
+    if ( parent%n(3) <= pz + 1 ) cycle
+    do x = 1 , grid%n(1)
+       px = 2 * x
+       if ( parent%n(1) <= px + 1 ) cycle
+
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v8
+       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v8
+       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v8
+       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v8
+
+       ! middles
+       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v8
+       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v8
+       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v8
+       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v8
+
+       ! neighbours
+       Vp(px,py,pz) = Vp(px,py,pz) + v8
+
+    end do
+    end do
+!$OMP end do
+
+    x = grid%n(1)
+    px = parent%n(1)
+    if ( x * 2 /= px ) then
+!$OMP do 
+    do z = 1 , grid%n(3)
+    pz = 2 * z
+    if ( parent%n(3) <= pz + 1 ) cycle
+    do y = 1 , grid%n(2)
+       py = 2 * y
+       if ( parent%n(2) <= py + 1 ) cycle
+
+       v2 = f2 * V(x,y,z)
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px-1,py-1,pz-1) = Vp(px-1,py-1,pz-1) + v8
+       Vp(px-1,py-1,pz+1) = Vp(px-1,py-1,pz+1) + v8
+       Vp(px-1,py+1,pz-1) = Vp(px-1,py+1,pz-1) + v8
+       Vp(px-1,py+1,pz+1) = Vp(px-1,py+1,pz+1) + v8
+
+       ! middles
+       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v4
+       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v4
+       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v4
+       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v4
+       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v4
+       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v4
+       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v4
+       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v4
+
+       ! neighbours
+       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v2
+       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v2
+       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v2
+       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v2
+       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v2
+
+    end do
+    end do
+!$OMP end do
+    end if
+!$OMP do 
+    do z = 1 , grid%n(3)
+    pz = 2 * z
+    if ( parent%n(3) <= pz + 1 ) cycle
+    do y = 1 , grid%n(2)
+       py = 2 * y
+       if ( parent%n(2) <= py + 1 ) cycle
+
+       v4 = f4 * V(x,y,z)
+       v8 = f8 * V(x,y,z)
+
+       ! corners
+       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v8
+       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v8
+       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v8
+       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v8
+
+       ! middles
+       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v8
+       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v8
+       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v8
+       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v8
+
+       ! neighbours
+       Vp(px,py,pz) = Vp(px,py,pz) + v8
+
     end do
     end do
 !$OMP end do
@@ -772,5 +1091,34 @@ contains
     end do
     tol = grid%tol * abs(vmax - vmin) / maxval(grid%n) !grid_non_constant_elem(grid)
   end function grid_tolerance
+
+  function overlap(tg,tx,ty,tz,bg,bx,by,bz) result(lap)
+    type(mg_grid), intent(in) :: tg, bg
+    integer, intent(in) :: tx,ty,tz,bx,by,bz
+    real(grid_p) :: lap
+    real(grid_p) :: tll(3), bll(3)
+
+    tll(:) = tg%offset(:) &
+         + tg%dL(:,1) * (tx-1) &
+         + tg%dL(:,2) * (ty-1) &
+         + tg%dL(:,3) * (tz-1)
+    bll(:) = bg%offset(:) &
+         + bg%dL(:,1) * (bx-1) &
+         + bg%dL(:,2) * (by-1) &
+         + bg%dL(:,3) * (bz-1)
+
+    ! TODO currently this overlap only works for rectangles...
+!    print '(2(3(3(tr1,e10.3),/)))',tll,tg%dLL,bll,bg%dLL
+!    print *, max(0._grid_p, max(tll(1)+tg%dLL(1),bll(1)+bg%dLL(1)) - min(tll(1),bll(1)))
+!    print *, max(0._grid_p, max(tll(3)+tg%dLL(3),bll(3)+bg%dLL(3)) - min(tll(3),bll(3)))
+    lap = &
+         max(0._grid_p, max(tll(1)+tg%dLL(1),bll(1)+bg%dLL(1)) - min(tll(1),bll(1))) * & ! x
+         max(0._grid_p, max(tll(2)+tg%dLL(2),bll(2)+bg%dLL(2)) - min(tll(2),bll(2))) * & ! y
+         max(0._grid_p, max(tll(3)+tg%dLL(3),bll(3)+bg%dLL(3)) - min(tll(3),bll(3)))     ! z
+
+ !   print *,tg%dVol,bg%dVol,lap
+!    lap = max(0._grid_p,min(1._grid_p,lap / ( tg%dVol + bg%dVol - lap )))
+    lap = lap / ( tg%dVol + bg%dVol - lap )
+  end function overlap
 
 end module t_mg

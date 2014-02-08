@@ -17,18 +17,22 @@ LIB_NAME:=../../src/$(LIB_NAME)
 LIB_TEST_NAME?=libmg_test.a
 LIB_TEST_NAME:=../$(LIB_TEST_NAME)
 
-default: test1
+default: test1 test2
 
 # Make dependecy list
 dep:
 	sfmakedepend --depend=obj --modext=o \
 		*.f90 *.F90
 
-test1: constriction.o
+test1: topbottom.o
+	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME)
+	./$@
+
+test2: topbottom_single.o
 	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME)
 	./$@
 
 clean:
-	rm -f test1 $(OBJS) *.mod *.MOD
+	rm -f test1 test2 $(OBJS) *.mod *.MOD
 
 # DO NOT DELETE THIS LINE - used by make depend

@@ -73,7 +73,7 @@ program topbottom
 
   c1 = clock()
 
-  call mg_gs_cds(top,method=CDS_BOTTOM_UP)
+!  call mg_gs_cds(top,method=CDS_BOTTOM_UP)
 
   time = timing(c1)
 
