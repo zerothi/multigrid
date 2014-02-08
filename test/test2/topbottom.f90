@@ -29,7 +29,7 @@ program topbottom
   ! initialize the initial grid
   cell(:,1) = (/12._dp,0._dp,0._dp/)
   cell(:,2) = (/0._dp,12._dp,0._dp/)
-  cell(:,3) = (/0._dp,0._dp,30._dp/)
+  cell(:,3) = (/0._dp,0._dp,5._dp/)
 
   ! we create it to be 100x100x100
   nn = 200
@@ -73,12 +73,12 @@ program topbottom
 
   c1 = clock()
 
-!  call mg_gs_cds(top,method=CDS_BOTTOM_UP)
+  call mg_gs_cds(top,method=CDS_BOTTOM_UP)
 
   time = timing(c1)
 
   print *,'Timing - BU:', time
-
+stop 'ss'
   top%V = 0._grid_p
   call grid_setup(top)
 
@@ -90,7 +90,7 @@ program topbottom
 
   print *,'Timing - W: ', time
 
-  call write_cube('test',top)
+!  call write_cube('test',top)
   
   call delete_grid(top)
   

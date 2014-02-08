@@ -24,6 +24,13 @@ contains
        write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid_tolerance(grid)
        write(*,trim(fmt)//'a,e10.3)')' -- SOR: ',grid%sor
        write(*,trim(fmt)//'a,3(tr1,e10.4))')' -- a(3): ',grid%a
+       if ( associated(grid%child) ) then
+          write(*,trim(fmt)//'a)',advance='NO')' -- Child: '
+          do j = 1 , 3
+             write(*,'(i0,tr1)',advance='NO') grid%n(j)-grid%child%n(j)*2
+          end do
+          write(*,*) ''
+       end if
        do j = 1 , grid%N_box
           call print_box(grid%box(j),indent = i)
        end do

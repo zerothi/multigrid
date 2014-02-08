@@ -31,7 +31,7 @@ program prores_check
   call init_grid(top,nn,cell,0,tol=tol)
   allocate(top%child)
   top%child%parent => top
-  call init_grid(top%child,nn / 2 - 1, &
+  call init_grid(top%child,(nn+mod(i,2)) / 2 - 1, &
        top%cell, top%N_box, offset=top%offset)
 
   write(*,*)'>> Created initial grid...'
@@ -65,6 +65,8 @@ program prores_check
   print '(a,3(i3,tr1))','   -- Minimum position         : ',minloc(top%V)
   print '(a,e10.3)','Maximum value after prolongation: ',maxval(top%V)
   print '(a,3(i3,tr1))','   -- Maximum position         : ',maxloc(top%V)
+
+  call delete_grid(top)
 
   end do
   

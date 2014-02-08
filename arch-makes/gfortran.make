@@ -8,9 +8,10 @@ FFLAGS=-O3 -m64 -fPIC -fno-second-underscore -ftree-vectorize -fexpensive-optimi
 	-ftree-loop-optimize -frename-registers -fprefetch-loop-arrays -finline-small-functions \
 	-fipa-pure-const -foptimize-sibling-calls -fipa-cp
 
+FFLAGS += -fopenmp
+
 #FFLAGS = -g -O0
 
-FFLAGS += -fopenmp
 #FFLAGS += -Wunused
 
 ARFLAGS = cru

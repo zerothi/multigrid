@@ -347,16 +347,16 @@ contains
 !$OMP do
     do y = 2 , grid%n(2) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x+dx,y,z)
-          val_r(2) = val_rho(grid,x,y-1,z)
-          val_r(3) = val_rho(grid,x,y+1,z)
-          val_r(4) = val_rho(grid,x,y,z+1)
+          val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y-1,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y+1,z) * grid%a(2)
+          val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
-               grid%a(3) * ( V(x,y,z+1) * val_r(4) ) )
+               V(x+dx,y,z) * val_r(1) + &
+               V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
+               V(x,y,z+1) * val_r(4) )
        end if
     end do
 !$OMP end do nowait
@@ -368,32 +368,32 @@ contains
        ! hence we need not "critical"
        y = 1
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x+dx,y,z)
-          val_r(2) = val_rho(grid,x,y+1,z)
-          val_r(3) = val_rho(grid,x,y,z-1)
-          val_r(4) = val_rho(grid,x,y,z+1)
+          val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y+1,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y,z-1) * grid%a(3)
+          val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y+1,z) * val_r(2) ) + &
-               grid%a(3) * ( V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) ) )
+               V(x+dx,y,z) * val_r(1) + &
+               V(x,y+1,z) * val_r(2) + &
+               V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
        end if
        do y = 2 , grid%n(2) - 1
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_xb(grid,V,x,y,z,dx)
        end do
        y = grid%n(2)
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x+dx,y,z)
-          val_r(2) = val_rho(grid,x,y-1,z)
-          val_r(3) = val_rho(grid,x,y,z-1)
-          val_r(4) = val_rho(grid,x,y,z+1)
+          val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y-1,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y,z-1) * grid%a(3)
+          val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y-1,z) * val_r(2) ) + &
-               grid%a(3) * ( V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) ) )
+               V(x+dx,y,z) * val_r(1) + &
+               V(x,y-1,z) * val_r(2) + &
+               V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
        end if
     end do
 !$OMP end do nowait
@@ -404,16 +404,16 @@ contains
 !$OMP do
     do y = 2 , grid%n(2) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x+dx,y,z)
-          val_r(2) = val_rho(grid,x,y-1,z)
-          val_r(3) = val_rho(grid,x,y+1,z)
-          val_r(4) = val_rho(grid,x,y,z-1)
+          val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y-1,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y+1,z) * grid%a(2)
+          val_r(4) = val_rho(grid,x,y,z-1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
-               grid%a(3) * ( V(x,y,z-1) * val_r(4) ) )
+               V(x+dx,y,z) * val_r(1) + &
+               V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
+               V(x,y,z-1) * val_r(4) )
        end if
     end do
 !$OMP end do nowait
@@ -450,16 +450,16 @@ contains
 !$OMP do
     do x = 2 , grid%n(1) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x-1,y,z)
-          val_r(2) = val_rho(grid,x+1,y,z)
-          val_r(3) = val_rho(grid,x,y+dy,z)
-          val_r(4) = val_rho(grid,x,y,z+1)
+          val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x+1,y,z) * grid%a(1)
+          val_r(3) = val_rho(grid,x,y+dy,z) * grid%a(2)
+          val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-               grid%a(2) * ( V(x,y+dy,z) * val_r(3) ) + &
-               grid%a(3) * ( V(x,y,z+1) * val_r(4) ) )
+               V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) + &
+               V(x,y+dy,z) * val_r(3) + &
+               V(x,y,z+1) * val_r(4) )
        end if
     end do
 !$OMP end do nowait
@@ -471,16 +471,16 @@ contains
        ! hence we need not "critical"
        x = 1
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x+1,y,z)
-          val_r(2) = val_rho(grid,x,y+dy,z)
-          val_r(3) = val_rho(grid,x,y,z-1)
-          val_r(4) = val_rho(grid,x,y,z+1)
+          val_r(1) = val_rho(grid,x+1,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y+dy,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y,z-1) * grid%a(3)
+          val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x+1,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y+dy,z) * val_r(2) ) + &
-               grid%a(3) * ( V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) ) )
+               V(x+1,y,z) * val_r(1) + &
+               V(x,y+dy,z) * val_r(2) + &
+               V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
        end if
 
        do x = 2 , grid%n(1) - 1
@@ -489,16 +489,16 @@ contains
 
        x = grid%n(1)
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x-1,y,z)
-          val_r(2) = val_rho(grid,x,y+dy,z)
-          val_r(3) = val_rho(grid,x,y,z-1)
-          val_r(4) = val_rho(grid,x,y,z+1)
+          val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y+dy,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y,z-1) * grid%a(3)
+          val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x-1,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y+dy,z) * val_r(2) ) + &
-               grid%a(3) * ( V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) ) )
+               V(x-1,y,z) * val_r(1)+ &
+               V(x,y+dy,z) * val_r(2) + &
+               V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
        end if
     end do
 !$OMP end do nowait
@@ -509,16 +509,16 @@ contains
 !$OMP do
     do x = 2 , grid%n(1) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x-1,y,z)
-          val_r(2) = val_rho(grid,x+1,y,z)
-          val_r(3) = val_rho(grid,x,y+dy,z)
-          val_r(4) = val_rho(grid,x,y,z-1)
+          val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x+1,y,z) * grid%a(1)
+          val_r(3) = val_rho(grid,x,y+dy,z) * grid%a(2)
+          val_r(4) = val_rho(grid,x,y,z-1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-               grid%a(2) * ( V(x,y+dy,z) * val_r(3) ) + &
-               grid%a(3) * ( V(x,y,z-1) * val_r(4) ) )
+               V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) + &
+               V(x,y+dy,z) * val_r(3) + &
+               V(x,y,z-1) * val_r(4) )
        end if
     end do
 !$OMP end do nowait
@@ -553,16 +553,16 @@ contains
     do y = 2 , grid%n(2) - 1
        x = 1
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x+1,y,z)
-          val_r(2) = val_rho(grid,x,y-1,z)
-          val_r(3) = val_rho(grid,x,y+1,z)
-          val_r(4) = val_rho(grid,x,y,z+dz)
+          val_r(1) = val_rho(grid,x+1,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y-1,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y+1,z) * grid%a(2)
+          val_r(4) = val_rho(grid,x,y,z+dz) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x+1,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
-               grid%a(3) * ( V(x,y,z+dz) * val_r(4) ) )
+               V(x+1,y,z) * val_r(1) + &
+               V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
+               V(x,y,z+dz) * val_r(4) )
        end if
 
        do x = 2 , grid%n(1) - 1
@@ -571,16 +571,16 @@ contains
 
        x = grid%n(1)
        if ( .not. is_constant(grid,x,y,z) ) then
-          val_r(1) = val_rho(grid,x-1,y,z)
-          val_r(2) = val_rho(grid,x,y-1,z)
-          val_r(3) = val_rho(grid,x,y+1,z)
-          val_r(4) = val_rho(grid,x,y,z+dz)
+          val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
+          val_r(2) = val_rho(grid,x,y-1,z) * grid%a(2)
+          val_r(3) = val_rho(grid,x,y+1,z) * grid%a(2)
+          val_r(4) = val_rho(grid,x,y,z+dz) * grid%a(3)
           val_r = val_r / sum(val_r)
           
           V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
-               grid%a(1) * ( V(x-1,y,z) * val_r(1) ) + &
-               grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
-               grid%a(3) * ( V(x,y,z+dz) * val_r(4) ) )
+               V(x-1,y,z) * val_r(1) + &
+               V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
+               V(x,y,z+dz) * val_r(4) )
        end if
 
     end do
@@ -597,14 +597,14 @@ contains
     integer, intent(in) :: x,y,z,dx,dy,dz
     real(grid_p) :: vcur, val_r(3)
     if ( is_constant(grid,x,y,z) ) return
-    val_r(1) = val_rho(grid,x+dx,y,z)
-    val_r(2) = val_rho(grid,x,y+dy,z)
-    val_r(3) = val_rho(grid,x,y,z+dz)
+    val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
+    val_r(2) = val_rho(grid,x,y+dy,z) * grid%a(2)
+    val_r(3) = val_rho(grid,x,y,z+dz) * grid%a(3)
     val_r = val_r / sum(val_r)
     vcur = &
-         grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-         grid%a(2) * ( V(x,y+dy,z) * val_r(2) ) + &
-         grid%a(3) * ( V(x,y,z+dz) * val_r(3) )
+         V(x+dx,y,z) * val_r(1) + &
+         V(x,y+dy,z) * val_r(2) + &
+         V(x,y,z+dz) * val_r(3) 
     V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
   end subroutine gs_corner
 
@@ -618,18 +618,18 @@ contains
     val = V(x,y,z)
     if ( is_constant(grid,x,y,z) ) return
     
-    val_r(1) = val_rho(grid,x-1,y,z)
-    val_r(2) = val_rho(grid,x+1,y,z)
-    val_r(3) = val_rho(grid,x,y-1,z)
-    val_r(4) = val_rho(grid,x,y+1,z)
-    val_r(5) = val_rho(grid,x,y,z-1)
-    val_r(6) = val_rho(grid,x,y,z+1)
+    val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
+    val_r(2) = val_rho(grid,x+1,y,z) * grid%a(1)
+    val_r(3) = val_rho(grid,x,y-1,z) * grid%a(2)
+    val_r(4) = val_rho(grid,x,y+1,z) * grid%a(2)
+    val_r(5) = val_rho(grid,x,y,z-1) * grid%a(3)
+    val_r(6) = val_rho(grid,x,y,z+1) * grid%a(3)
     val_r = val_r / sum(val_r)
 
     val = &
-         grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         grid%a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
-         grid%a(3) * ( V(x,y,z-1) * val_r(5) + V(x,y,z+1) * val_r(6) )
+         V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) + &
+         V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) + &
+         V(x,y,z-1) * val_r(5) + V(x,y,z+1) * val_r(6) 
 
   end function val
 
@@ -644,17 +644,17 @@ contains
     val = V(x,y,z)
     if ( is_constant(grid,x,y,z) ) return
 
-    val_r(1) = val_rho(grid,x+dx,y,z)
-    val_r(2) = val_rho(grid,x,y-1,z)
-    val_r(3) = val_rho(grid,x,y+1,z)
-    val_r(4) = val_rho(grid,x,y,z-1)
-    val_r(5) = val_rho(grid,x,y,z+1)
+    val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
+    val_r(2) = val_rho(grid,x,y-1,z) * grid%a(2)
+    val_r(3) = val_rho(grid,x,y+1,z) * grid%a(2)
+    val_r(4) = val_rho(grid,x,y,z-1) * grid%a(3)
+    val_r(5) = val_rho(grid,x,y,z+1) * grid%a(3)
     val_r = val_r / sum(val_r)
 
     val = &
-         grid%a(1) * ( V(x+dx,y,z) * val_r(1) ) + &
-         grid%a(2) * ( V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) ) + &
-         grid%a(3) * ( V(x,y,z-1) * val_r(4) + V(x,y,z+1) * val_r(5) )
+         V(x+dx,y,z) * val_r(1) + &
+         V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
+         V(x,y,z-1) * val_r(4) + V(x,y,z+1) * val_r(5)
 
   end function val_xb
 
@@ -669,17 +669,17 @@ contains
     val = V(x,y,z)
     if ( is_constant(grid,x,y,z) ) return
 
-    val_r(1) = val_rho(grid,x-1,y,z)
-    val_r(2) = val_rho(grid,x+1,y,z)
-    val_r(3) = val_rho(grid,x,y+dy,z)
-    val_r(4) = val_rho(grid,x,y,z-1)
-    val_r(5) = val_rho(grid,x,y,z+1)
+    val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
+    val_r(2) = val_rho(grid,x+1,y,z) * grid%a(1)
+    val_r(3) = val_rho(grid,x,y+dy,z) * grid%a(2)
+    val_r(4) = val_rho(grid,x,y,z-1) * grid%a(3)
+    val_r(5) = val_rho(grid,x,y,z+1) * grid%a(3)
     val_r = val_r / sum(val_r)
 
     val = &
-         grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         grid%a(2) * ( V(x,y+dy,z) * val_r(3) ) + &
-         grid%a(3) * ( V(x,y,z-1) * val_r(4) + V(x,y,z+1) * val_r(5) )
+         V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) + &
+         V(x,y+dy,z) * val_r(3) + &
+         V(x,y,z-1) * val_r(4) + V(x,y,z+1) * val_r(5)
     
   end function val_yb
 
@@ -693,17 +693,17 @@ contains
     val = V(x,y,z)
     if ( is_constant(grid,x,y,z) ) return
 
-    val_r(1) = val_rho(grid,x-1,y,z)
-    val_r(2) = val_rho(grid,x+1,y,z)
-    val_r(3) = val_rho(grid,x,y-1,z)
-    val_r(4) = val_rho(grid,x,y+1,z)
-    val_r(5) = val_rho(grid,x,y,z+dz)
+    val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
+    val_r(2) = val_rho(grid,x+1,y,z) * grid%a(1)
+    val_r(3) = val_rho(grid,x,y-1,z) * grid%a(2)
+    val_r(4) = val_rho(grid,x,y+1,z) * grid%a(2)
+    val_r(5) = val_rho(grid,x,y,z+dz) * grid%a(3)
     val_r = val_r / sum(val_r)
 
     val = &
-         grid%a(1) * ( V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) ) + &
-         grid%a(2) * ( V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) ) + &
-         grid%a(3) * ( V(x,y,z+dz) * val_r(5) )
+         V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) + &
+         V(x,y-1,z) * val_r(3) + V(x,y+1,z) * val_r(4) + &
+         V(x,y,z+dz) * val_r(5)
 
   end function val_zb
 
