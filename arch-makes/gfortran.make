@@ -10,7 +10,7 @@ FFLAGS=-O3 -m64 -fPIC -fno-second-underscore -ftree-vectorize -fexpensive-optimi
 
 FFLAGS += -fopenmp
 
-#FFLAGS = -g -O0
+FFLAGS = -g -O0 -Warray-bounds
 
 #FFLAGS += -Wunused
 
