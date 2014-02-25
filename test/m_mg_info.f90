@@ -13,6 +13,7 @@ contains
     type(mg_grid), pointer :: grid
 
     integer :: i, j
+    real(grid_p) :: n
     character(len=10) :: fmt
 
     i = 1
@@ -28,6 +29,11 @@ contains
           write(*,trim(fmt)//'a)',advance='NO')' -- Child: '
           do j = 1 , 3
              write(*,'(i0,tr1)',advance='NO') grid%n(j)-grid%child%n(j)*2
+          end do
+          write(*,trim(fmt)//'a)',advance='NO')' -- Child-fac: '
+          do j = 1 , 3
+             n = real(grid%n(j),dp)/real(grid%child%n(j),dp)
+             write(*,'(e10.4,tr1)',advance='NO') n - int(n)
           end do
           write(*,*) ''
        end if

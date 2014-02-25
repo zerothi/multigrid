@@ -16,7 +16,7 @@ dep:
 		*.f90 *.F90
 
 # Grid objects
-OBJS = t_mg.o
+OBJS = t_mg.o m_mg_save.o
 
 # Gauss-Seidel objects
 OBJS += m_gs_CDS.o

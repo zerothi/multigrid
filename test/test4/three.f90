@@ -2,7 +2,7 @@ program topbottom
 
   use t_mg
   use m_gs_CDS
-  use m_mg_sae
+  use m_mg_save
 
   ! test libraries
   use m_mg_info
@@ -23,7 +23,7 @@ program topbottom
   call init_timing()
 
   ! tolerance for the convergence
-  tol = 1.e-3_grid_p
+  tol = 1.e-4_grid_p
   sor = 1.8_grid_p
 
   ! initialize the initial grid
@@ -34,7 +34,7 @@ program topbottom
   ! we create it to be 100x100x100
   nn = 200
   ! create grid
-  call init_grid(top,nn,cell,4,tol=tol)
+  call init_grid(top,nn,cell,7,tol=tol)
 
   write(*,*)'>> Created initial grid...'
 
@@ -58,23 +58,32 @@ program topbottom
 
   write(*,*)'  >> Add all the boxes...'
   ! The "electrodes"
-  bcell(:,:) = cell(:,:) / 3._dp
-  bcell(3,3) = cell(3,3) / 10._dp
+  ! the first one is in the middle of the bottom x-cell
+  bcell(:,:) = cell(:,:) / 10._dp
   ll = (/ &
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
-       cell(2,2) / 2._dp - bcell(2,2) / 2._dp , &
+       0._dp , &
        0._dp /)
-  call grid_add_box(top, ll, bcell, 1._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 0.5_grid_p, 1._grid_p, .true.)
+  ll(2) = cell(2,2) - bcell(2,2)
+  ll(3) = cell(3,3) / 10._dp
+  call grid_add_box(top, ll, bcell, 1.0_grid_p, 1._grid_p, .true.)
+  ll(2) = cell(2,2) / 2._dp - bcell(2,2) / 2._dp
   ll(3) = cell(3,3) - bcell(3,3)
   call grid_add_box(top, ll, bcell, -1._grid_p, 1._grid_p, .true.)
-  ! add the constriction
-  bcell(:,1:2) = bcell(:,1:2) / 3._dp
-  bcell(3,3)   = cell(3,3) - bcell(3,3) * 2._dp
-  ll = (/ &
-       cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
-       cell(2,2) / 2._dp - bcell(2,2) / 2._dp , &
-       cell(3,3) / 10._dp /)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
+
+  ! add points to control run-away potentials
+  do N = 1 , 3
+     bcell(:,N) = cell(:,N) / (nn(N)-.05 * nn(N))
+  end do
+  ll = (/ 0._dp,0._dp,cell(3,3)/)
+  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
+  ll = (/ cell(1,1),cell(2,2),cell(3,3)/)
+  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
+  ll = (/ cell(1,1),cell(2,2),0._dp/)
+  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
+  ll = (/ 0._dp,cell(2,2),0._dp/)
+  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
   
   call print_grid(top)
 
@@ -83,17 +92,24 @@ program topbottom
   call grid_setup(top)
 
   ! write out the initial cube file
-  call mg_save(top,'initial',MG_SAVE_CUBE)
+  !call mg_save(top,'initial',MG_SAVE_CUBE)
 
   c1 = clock()
 
-  call mg_gs_cds(top)
+  call mg_gs_cds(top,CDS_W_CYCLE)
 
   time = timing(c1)
 
   print *,'Timing:', time
 
+  c1 = clock()
   call mg_save(top,'test',MG_SAVE_CUBE)
+  time = timing(c1)
+  print *,'Timing CUBE:', time
+  c1 = clock()
+  call mg_save(top,'test',MG_SAVE_BINARY)
+  time = timing(c1)
+  print *,'Timing BINARY:', time
 
   call delete_grid(top)
   

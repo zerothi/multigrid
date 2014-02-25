@@ -17,7 +17,8 @@ LIB_NAME:=../../src/$(LIB_NAME)
 LIB_TEST_NAME?=libmg_test.a
 LIB_TEST_NAME:=../$(LIB_TEST_NAME)
 
-default: test1 test2
+#default: test1 test2
+default: test1
 
 # Make dependecy list
 dep:

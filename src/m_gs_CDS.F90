@@ -211,11 +211,8 @@ contains
        ! the restriction cycle
        if ( .not. grid%child%enabled ) exit
 
-       ! Do two steps
-       do i = 1 , grid%steps
-          call gs_step(grid)
-       end do
-       
+       call gs_step(grid)
+
        ! allocate space for the child
        call grid_bring_back(grid%child)
        
@@ -230,13 +227,15 @@ contains
 
     end do
 
+    do i = 1 , grid%steps
+       call gs_step(grid)
+    end do
+
     ! go back in cycle...
 
     do
        
-       do i = 1 , grid%steps
-          call gs_step(grid)
-       end do
+       call gs_step(grid)
 
        if ( grid%layer == pg%layer ) exit
        

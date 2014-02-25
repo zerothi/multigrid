@@ -23,8 +23,14 @@ program prores_check
   cell(:,2) = (/0._dp,2._dp,0._dp/)
   cell(:,3) = (/0._dp,0._dp,2._dp/)
 
-  do i = 8, 15
-
+  i = 7
+  do 
+  i = i + 1
+  if ( i == 16 ) then
+     i = 128
+  else if ( i > 100 ) then
+     exit
+  end if
   ! we create it to be 100x100x100
   nn = i
   ! create grid

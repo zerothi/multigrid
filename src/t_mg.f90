@@ -271,6 +271,11 @@ contains
     end do
     end do
 !$OMP end parallel do
+    
+    ! ensure at least one point!
+    do x = 1, 3
+       box%place(2,x) = max(box%place(2,x),box%place(1,x))
+    end do
 
     ! if not present, simply delete it...
     if ( all(box%place(1,:) == huge(0)) .and. &
@@ -303,6 +308,34 @@ contains
     end subroutine insert_point
 
   end subroutine grid_add_box
+
+  subroutine grid_add_point(grid, llc, val, rho, constant)
+    type(mg_grid), intent(inout) :: grid
+    real(dp), intent(in) :: llc(3)
+    real(grid_p), intent(in) :: val, rho
+    logical, intent(in) :: constant
+    
+    real(dp) :: bl(3,3)
+    
+    bl(:,:) = 0._dp
+    call grid_add_box(grid,llc,bl,val,rho,constant)
+
+  end subroutine grid_add_point
+
+  subroutine grid_add_line(grid, llc, dir, l, val, rho, constant)
+    type(mg_grid), intent(inout) :: grid
+    real(dp), intent(in) :: llc(3), l ! the length of the line
+    integer, intent(in) :: dir
+    real(grid_p), intent(in) :: val, rho
+    logical, intent(in) :: constant
+    
+    real(dp) :: bl(3,3)
+    
+    bl = 0._dp
+    bl(dir,dir) = l
+    call grid_add_box(grid,llc,bl,val,rho,constant)
+
+  end subroutine grid_add_line
 
   subroutine grid_setup(grid)
     type(mg_grid), intent(inout) :: grid
@@ -371,6 +404,90 @@ contains
     call grid_hold_back(grid)
 
   end subroutine delete_grid
+
+  subroutine grid_restriction_new(grid)
+    type(mg_grid), intent(inout) :: grid
+
+    real(grid_p),  pointer :: V(:,:,:), Vc(:,:,:)
+    type(mg_grid), pointer :: child
+
+    real(grid_p), parameter :: f1 = 10._grid_p / 64._grid_p
+    real(grid_p), parameter :: f2 = 5._grid_p / 64._grid_p
+    real(grid_p), parameter :: f3 = 2._grid_p / 64._grid_p
+    real(grid_p), parameter :: f4 = 1._grid_p / 64._grid_p
+
+    real(grid_p), pointer :: vt
+    integer :: x,y,z, px,py,pz
+
+    ! if the child does not exist, then return immediately
+    if ( .not. associated(grid%child) ) return
+
+    V  => grid%V
+    child => grid%child
+    Vc => child%V
+
+!$OMP parallel default(shared) private(x,px,y,py,z,pz,vt)
+
+    ! initialize the child
+!$OMP workshare
+    Vc = 0._grid_p
+!$OMP end workshare
+
+    ! we employ full-weighting
+
+!$OMP do
+    do z = 1 , child%n(3)
+    pz = z * 2
+    if ( pz >= grid%n(3) ) cycle
+    do y = 1 , child%n(2)
+    py = y * 2
+    if ( py >= grid%n(2) ) cycle
+    do x = 1 , child%n(1)
+       px = x * 2
+       if ( px >= grid%n(1) ) cycle
+
+       ! point to the element
+       vt => Vc(x,y,z)
+
+       vt =      V(px,py,pz) * f1
+
+       ! neighbours
+       vt = vt + V(px-1,py,pz) * f2
+       vt = vt + V(px+1,py,pz) * f2
+       vt = vt + V(px,py-1,pz) * f2
+       vt = vt + V(px,py+1,pz) * f2
+       vt = vt + V(px,py,pz-1) * f2
+       vt = vt + V(px,py,pz+1) * f2
+
+       ! next-neighbours
+       vt = vt + V(px-1,py-1,pz) * f3
+       vt = vt + V(px-1,py+1,pz) * f3
+       vt = vt + V(px-1,py,pz-1) * f3
+       vt = vt + V(px-1,py,pz+1) * f3
+
+       vt = vt + V(px+1,py-1,pz) * f3
+       vt = vt + V(px+1,py+1,pz) * f3
+       vt = vt + V(px+1,py,pz-1) * f3
+       vt = vt + V(px+1,py,pz+1) * f3
+
+       vt = vt + V(px,py-1,pz-1) * f3
+       vt = vt + V(px,py-1,pz+1) * f3
+       vt = vt + V(px,py+1,pz-1) * f3
+       vt = vt + V(px,py+1,pz+1) * f3
+
+    end do
+    end do
+    end do
+!$OMP end do
+
+!$OMP end parallel
+
+    ! we still need the border...
+
+    ! re-instantiate the constant fields
+    call grid_setup(child)
+
+  end subroutine grid_restriction_new
 
   subroutine grid_restriction(grid)
     type(mg_grid), intent(inout) :: grid
@@ -459,21 +576,21 @@ contains
 
   end subroutine grid_restriction
 
+
   subroutine grid_prolongation(grid)
     type(mg_grid), intent(inout), target :: grid
 
     real(grid_p), pointer :: Vp(:,:,:), V(:,:,:)
     type(mg_grid), pointer :: parent
 
-    real(grid_p), parameter :: f1 = .125_grid_p
-    real(grid_p), parameter :: f2 = .25_grid_p
-    real(grid_p), parameter :: f4 = .5_grid_p
-    real(grid_p), parameter :: f8 = 1._grid_p
+    real(grid_p), parameter :: f1 = 10._grid_p / 64._grid_p
+    real(grid_p), parameter :: f2 = 5._grid_p / 64._grid_p
+    real(grid_p), parameter :: f3 = 2._grid_p / 64._grid_p
+    real(grid_p), parameter :: f4 = 1._grid_p / 64._grid_p
 
-    real(grid_p) :: v1,v2,v4,v8
-    logical :: one_larger(3)
-    logical :: on(3)
+    real(grid_p), pointer :: vt
     integer :: x,y,z, px,py,pz
+
 
     ! if the child does not exist, then return immediately
     if ( .not. associated(grid%parent) ) return
@@ -482,321 +599,232 @@ contains
     parent => grid%parent
     Vp => parent%V
 
-    ! currently this prolongation only accepts
-    ! grids of double +1/+2 sizes
-    do x = 1 , 3
-       select case ( parent%n(x) - grid%n(x) * 2 )
-       case ( 1 )
-          one_larger(x) = .true.
-       case ( 2 )
-          one_larger(x) = .false.
-       case default
-          stop 'Not a functioning grid step...'
-       end select
-    end do
-
     ! initialize the parent to zero
-!$OMP parallel default(shared) private(x,px,y,py,z,pz,v1,v2,v4,v8)
+!$OMP parallel default(shared) private(x,px,y,py,z,pz,vt)
 
 !$OMP workshare
     Vp = 0._grid_p
 !$OMP end workshare
 
-    pz = 1
-    z  = 1
-!$OMP do
-    do py = 2 , parent%n(2) - 1 , 2
-    y = py / 2
-    do px = 2 , parent%n(1) - 1 , 2
-       x = px / 2
-
-       v1 = f1 * V(x,y,z)
-       v2 = f2 * V(x,y,z)
-       v4 = f4 * V(x,y,z)
-
-       ! corners
-       Vp(px-1,py-1,pz+1) = Vp(px-1,py-1,pz+1) + v1
-       Vp(px-1,py+1,pz+1) = Vp(px-1,py+1,pz+1) + v1 ! 4
-       Vp(px+1,py-1,pz+1) = Vp(px+1,py-1,pz+1) + v1
-       Vp(px+1,py+1,pz+1) = Vp(px+1,py+1,pz+1) + v1 ! 8
-
-       ! middles
-       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v2
-       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v2
-       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v2 !  4
-       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v2
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v2
-       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v2 !  8
-       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v2
-       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v2 ! 12
-       
-       ! neighbours
-       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v4
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v4
-       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v4 ! 3
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v4
-       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v4 ! 6
-
-    end do
-    end do
-!$OMP end do
-
-    py = 1 
-    y  = 1
-!$OMP do
-    do pz = 2 , parent%n(3) - 1 , 2
-    z = pz / 2
-    do px = 2 , parent%n(1) - 1 , 2
-       x = px / 2
-
-       v1 = f1 * V(x,y,z)
-       v2 = f2 * V(x,y,z)
-       v4 = f4 * V(x,y,z)
-
-       ! corners
-       Vp(px-1,py+1,pz-1) = Vp(px-1,py+1,pz-1) + v1
-       Vp(px-1,py+1,pz+1) = Vp(px-1,py+1,pz+1) + v1 ! 4
-       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v1
-       Vp(px+1,py+1,pz+1) = Vp(px+1,py+1,pz+1) + v1 ! 8
-
-       ! middles
-       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v2
-       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v2
-       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v2 !  4
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v2
-       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v2
-       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v2 !  8
-       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v2
-       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v2 ! 12
-
-       ! neighbours
-       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v4
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v4
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v4
-       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v4
-       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v4 ! 6
-
-    end do
-    end do
-!$OMP end do
-
-
-    px = 1
-    x  = 1
-!$OMP do
-    do pz = 2 , parent%n(3) - 1 , 2
-    z = pz / 2
-    do py = 2 , parent%n(2) - 1 , 2
-    y = py / 2
-
-       v1 = f1 * V(x,y,z)
-       v2 = f2 * V(x,y,z)
-       v4 = f4 * V(x,y,z)
-
-       ! corners
-       Vp(px+1,py-1,pz-1) = Vp(px+1,py-1,pz-1) + v1
-       Vp(px+1,py-1,pz+1) = Vp(px+1,py-1,pz+1) + v1
-       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v1
-       Vp(px+1,py+1,pz+1) = Vp(px+1,py+1,pz+1) + v1 ! 8
-
-       ! middles
-       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v2
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v2
-       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v2
-       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v2 !  8
-       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v2
-       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v2
-       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v2
-       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v2 ! 12
-
-       ! neighbours
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v4
-       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v4 ! 3
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v4
-       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v4
-       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v4 ! 6
-
-    end do
-    end do
-!$OMP end do
-
     ! do middle loop
 !$OMP do
-    do pz = 2 , parent%n(3) - 1 , 2
-    z = pz / 2
-    do py = 2 , parent%n(2) - 1 , 2
-    y = py / 2
-    do px = 2 , parent%n(1) - 1 , 2
-       x = px / 2
+    do pz = 1 , parent%n(3)
+    z = max(2, pz / 2 - pz / grid%n(3))
+    if ( z >= grid%n(3) ) cycle
 
-       v1 = f1 * V(x,y,z)
-       v2 = f2 * V(x,y,z)
-       v4 = f4 * V(x,y,z)
-       v8 = f8 * V(x,y,z)
+    do py = 1 , parent%n(2)
+    y = max(2,py / 2 - py / grid%n(2))
+    if ( y >= grid%n(2) ) cycle
 
-       ! corners
-       Vp(px-1,py-1,pz-1) = Vp(px-1,py-1,pz-1) + v1
-       Vp(px-1,py-1,pz+1) = Vp(px-1,py-1,pz+1) + v1
-       Vp(px-1,py+1,pz-1) = Vp(px-1,py+1,pz-1) + v1
-       Vp(px-1,py+1,pz+1) = Vp(px-1,py+1,pz+1) + v1 ! 4
-       Vp(px+1,py-1,pz-1) = Vp(px+1,py-1,pz-1) + v1
-       Vp(px+1,py-1,pz+1) = Vp(px+1,py-1,pz+1) + v1
-       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v1
-       Vp(px+1,py+1,pz+1) = Vp(px+1,py+1,pz+1) + v1 ! 8
+    do px = 1 , parent%n(1)
+       x = max(2,px / 2 - px / grid%n(1))
+       if ( x >= grid%n(1) ) cycle
 
-       ! middles
-       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v2
-       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v2
-       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v2
-       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v2 !  4
-       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v2
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v2
-       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v2
-       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v2 !  8
-       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v2
-       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v2
-       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v2
-       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v2 ! 12
+       ! point to the vector
+       vt => Vp(px,py,pz)
+
+       vt = V(x,y,z) * f1
 
        ! neighbours
-       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v4
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v4
-       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v4 ! 3
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v4
-       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v4
-       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v4 ! 6
+       vt = vt + V(x-1,y,z) * f2
+       vt = vt + V(x+1,y,z) * f2
+       vt = vt + V(x,y-1,z) * f2
+       vt = vt + V(x,y+1,z) * f2
+       vt = vt + V(x,y,z-1) * f2
+       vt = vt + V(x,y,z+1) * f2
 
-       ! center
-       Vp(px,py,pz) = Vp(px,py,pz) + v8
+       ! next-neighbours
+       vt = vt + V(x-1,y-1,z) * f3
+       vt = vt + V(x-1,y+1,z) * f3
+       vt = vt + V(x-1,y,z-1) * f3
+       vt = vt + V(x-1,y,z+1) * f3
+
+       vt = vt + V(x+1,y-1,z) * f3
+       vt = vt + V(x+1,y+1,z) * f3
+       vt = vt + V(x+1,y,z-1) * f3
+       vt = vt + V(x+1,y,z+1) * f3
+
+       vt = vt + V(x,y-1,z-1) * f3
+       vt = vt + V(x,y-1,z+1) * f3
+       vt = vt + V(x,y+1,z-1) * f3
+       vt = vt + V(x,y+1,z+1) * f3
        
     end do
     end do
     end do
-!$OMP end do
-
-    pz = parent%n(3)
-    z  = grid%n(3)
-!$OMP do
-    do py = 2 , parent%n(2) - 1 , 2
-    y = py / 2
-    do px = 2 , parent%n(1) - 1 , 2
-       x = px / 2
-
-       v1 = f1 * V(x,y,z)
-       v2 = f2 * V(x,y,z)
-       v4 = f4 * V(x,y,z)
-
-       ! corners
-       Vp(px-1,py-1,pz-1) = Vp(px-1,py-1,pz-1) + v1
-       Vp(px-1,py+1,pz-1) = Vp(px-1,py+1,pz-1) + v1
-       Vp(px+1,py-1,pz-1) = Vp(px+1,py-1,pz-1) + v1
-       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v1
-
-       ! middles
-       Vp(px-1,py-1,pz) = Vp(px-1,py-1,pz) + v2
-       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v2
-       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v2
-       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v2
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v2
-       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v2
-       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v2
-       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v2
-
-       ! neighbours
-       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v4
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v4
-       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v4 ! 3
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v4
-       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v4
-
-    end do
-    end do
-!$OMP end do
-
-    py = 1
-    y  = 1
-!$OMP do
-    do pz = 2 , parent%n(3) - 1 , 2
-    z = pz / 2
-    do px = 2 , parent%n(1) - 1 , 2
-       x = px / 2
-
-       v1 = f1 * V(x,y,z)
-       v2 = f2 * V(x,y,z)
-       v4 = f4 * V(x,y,z)
-
-       ! corners
-       Vp(px-1,py+1,pz-1) = Vp(px-1,py+1,pz-1) + v1
-       Vp(px-1,py+1,pz+1) = Vp(px-1,py+1,pz+1) + v1 ! 4
-       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v1
-       Vp(px+1,py+1,pz+1) = Vp(px+1,py+1,pz+1) + v1 ! 8
-
-       ! middles
-       Vp(px-1,py+1,pz) = Vp(px-1,py+1,pz) + v2
-       Vp(px-1,py,pz-1) = Vp(px-1,py,pz-1) + v2
-       Vp(px-1,py,pz+1) = Vp(px-1,py,pz+1) + v2 !  4
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v2
-       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v2
-       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v2 !  8
-       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v2
-       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v2 ! 12
-
-       ! neighbours
-       Vp(px-1,py,pz) = Vp(px-1,py,pz) + v4
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v4
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v4
-       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v4
-       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v4 ! 6
-
-    end do
-    end do
-!$OMP end do
-
-    px = 1
-    x  = 1
-!$OMP do
-    do pz = 2 , parent%n(3) - 1 , 2
-    z = pz / 2
-    do py = 2 , parent%n(2) - 1 , 2
-    y = py / 2
-
-       v1 = f1 * V(x,y,z)
-       v2 = f2 * V(x,y,z)
-       v4 = f4 * V(x,y,z)
-
-       ! corners
-       Vp(px+1,py-1,pz-1) = Vp(px+1,py-1,pz-1) + v1
-       Vp(px+1,py-1,pz+1) = Vp(px+1,py-1,pz+1) + v1
-       Vp(px+1,py+1,pz-1) = Vp(px+1,py+1,pz-1) + v1
-       Vp(px+1,py+1,pz+1) = Vp(px+1,py+1,pz+1) + v1 ! 8
-
-       ! middles
-       Vp(px+1,py-1,pz) = Vp(px+1,py-1,pz) + v2
-       Vp(px+1,py+1,pz) = Vp(px+1,py+1,pz) + v2
-       Vp(px+1,py,pz-1) = Vp(px+1,py,pz-1) + v2
-       Vp(px+1,py,pz+1) = Vp(px+1,py,pz+1) + v2 !  8
-       Vp(px,py-1,pz-1) = Vp(px,py-1,pz-1) + v2
-       Vp(px,py-1,pz+1) = Vp(px,py-1,pz+1) + v2
-       Vp(px,py+1,pz-1) = Vp(px,py+1,pz-1) + v2
-       Vp(px,py+1,pz+1) = Vp(px,py+1,pz+1) + v2 ! 12
-
-       ! neighbours
-       Vp(px+1,py,pz) = Vp(px+1,py,pz) + v4
-       Vp(px,py-1,pz) = Vp(px,py-1,pz) + v4 ! 3
-       Vp(px,py+1,pz) = Vp(px,py+1,pz) + v4
-       Vp(px,py,pz-1) = Vp(px,py,pz-1) + v4
-       Vp(px,py,pz+1) = Vp(px,py,pz+1) + v4 ! 6
-       
-    end do
-    end do
-!$OMP end do
-
+!$OMP end do nowait
 
 !$OMP end parallel
 
     call grid_setup(parent)
 
   end subroutine grid_prolongation
+
+
+  subroutine grid_prolongation_elaborate(grid)
+    type(mg_grid), intent(inout), target :: grid
+
+    real(grid_p), pointer :: Vp(:,:,:), V(:,:,:)
+    type(mg_grid), pointer :: parent
+
+    real(grid_p), parameter :: f2 =   .5_grid_p ! 1 / 2
+
+    integer :: x,y,z, px,py,pz
+
+    integer :: c(3)
+    real(grid_p) :: wp(3), wpf(3)
+    real(grid_p) :: wxm1, wx0, wxp1
+    real(grid_p) :: wym1, wy0, wyp1
+    real(grid_p) :: wzm1, wz0, wzp1
+
+
+    ! if the child does not exist, then return immediately
+    if ( .not. associated(grid%parent) ) return
+
+    V  => grid%V
+    parent => grid%parent
+    Vp => parent%V
+
+    ! create the fraction graphs
+    wp = real(parent%n,dp) / real(grid%n,dp)
+    wpf = wp - int(wp)
+    wp = 1._grid_p
+
+    ! initialize the parent to zero
+!$OMP parallel default(shared) private(x,px,y,py,z,pz,c) &
+!$OMP    private(wxm1,wx0,wxp1,wym1,wy0,wyp1,wzm1,wz0,wzp1) &
+!$OMP    firstprivate(wpf,wp)
+
+!$OMP workshare
+    Vp = 0._grid_p
+!$OMP end workshare
+
+    ! its a private variable
+    c = 1
+!$OMP single
+    ! setup the correct values for the stuff
+    wzm1 = wp(3)
+    wz0  = wp(3)
+    wzp1 = wp(3)
+    wym1 = wp(2)
+    wy0  = wp(2)
+    wyp1 = wp(2)
+    wxm1 = wp(1)
+    wx0  = wp(1)
+    wxp1 = wp(1)
+!$OMP end single
+
+    ! do middle loop
+!$OMP do
+    do pz = 2 , parent%n(3) - 1
+    z = 2 + pz * 2
+    if ( z >= grid%n(3) ) cycle
+    call setup_pointer(c(3),wp(3),wpf(3),wzm1,wz0,wzp1)
+    y = 2
+    c(2) = 1
+    do py = 2 , parent%n(2) - 1
+    y = y + 2 
+    if ( y >= grid%n(2) ) cycle
+    call setup_pointer(c(2),wp(2),wpf(2),wym1,wy0,wyp1)
+    x = 2
+    c(1) = 1
+    do px = 2 , parent%n(1) - 1
+       x = x + 2
+       if ( x >= grid%n(1) ) cycle
+       call setup_pointer(c(1),wp(1),wpf(1),wxm1,wx0,wxp1)
+
+       if ( px == 6 .and. py == pz .and. py == 2) then
+          print *,Vp(px,py,pz)
+       end if
+
+       ! corner
+       Vp(px,py,pz) = &
+            wxm1 * ( V(x-1,y-1,z-1) * wym1 * wzm1 + &
+            V(x-1,y-1,z+1) * wym1 * wzp1 + &
+            V(x-1,y+1,z-1) * wyp1 * wzm1 + &
+            V(x-1,y+1,z+1) * wyp1 * wzp1 ) + &
+            wxp1 * ( V(x+1,y-1,z-1) * wym1 * wzm1 + &
+            V(x+1,y-1,z+1) * wym1 * wzp1 + &
+            V(x+1,y+1,z-1) * wyp1 * wzm1 + &
+            V(x+1,y+1,z+1) * wyp1 * wzp1 )
+
+       if ( px == 6 .and. py == pz .and. py == 2) then
+          print *,Vp(px,py,pz) * f2 **3
+       end if
+
+       ! middle
+       Vp(px,py,pz) = f2 * Vp(px,py,pz) + &
+            wxm1 * ( V(x-1,y-1,z)  * wym1 * wz0  + &
+            V(x-1,y+1,z) * wyp1 * wz0  + &
+            V(x-1,y,z-1) * wy0  * wzm1 + &
+            V(x-1,y,z+1) * wy0  * wzp1 ) + &
+            wxp1 * ( V(x+1,y-1,z) * wym1 * wz0  + &
+            V(x+1,y+1,z) * wyp1 * wz0  + &
+            V(x+1,y,z-1) * wy0  * wzm1 + &
+            V(x+1,y,z+1) * wy0  * wzp1 ) + &
+            wx0 * ( V(x,y-1,z-1) * wym1 * wzm1 + &
+            V(x,y-1,z+1) * wym1 * wzp1 + &
+            V(x,y+1,z-1) * wyp1 * wzm1 + &
+            V(x,y+1,z+1) * wyp1 * wzp1 )
+
+       if ( px == 6 .and. py == pz .and. py == 2) then
+          print *,Vp(px,py,pz) * f2 ** 2
+       end if
+
+       ! middle
+       Vp(px,py,pz) = f2 * Vp(px,py,pz) + &
+            V(x-1,y,z) * wxm1 * wy0  * wz0  + &
+            V(x+1,y,z) * wxp1 * wy0  * wz0  + &
+            wx0 * ( V(x,y-1,z) * wym1 * wz0  + &
+            V(x,y+1,z) * wyp1 * wz0  + &
+            V(x,y,z-1) * wy0  * wzm1 + &
+            V(x,y,z+1) * wy0  * wzp1 )
+
+       if ( px == 6 .and. py == pz .and. py == 2) then
+          print *,Vp(px,py,pz) * f2
+       end if
+
+       ! center
+       Vp(px,py,pz) = f2 * Vp(px,py,pz) + V(x,y,z) * wx0 * wy0 * wz0
+       
+    end do
+    end do
+    end do
+!$OMP end do nowait
+
+!$OMP end parallel
+
+    call grid_setup(parent)
+
+  contains
+
+    subroutine setup_pointer(c,wp,wpf,wm1,w0,wp1)
+      integer, intent(inout) :: c
+      real(grid_p), intent(in) :: wp, wpf
+      real(grid_p), intent(out) :: wm1, w0, wp1
+      real(grid_p) :: w
+
+      if ( c == 1 ) then
+         w = wm1
+         wm1 = w0
+         w0  = wp1
+         wp1 = w - wpf
+         c = 2
+      else if ( c == 2 ) then
+         wm1 = wp
+         w0  = wp
+         wp1 = wpf
+         c = 3
+      else
+         wm1 = wp
+         w0  = wp
+         wp1 = wpf
+         c = 1
+      end if
+
+    end subroutine setup_pointer
+
+  end subroutine grid_prolongation_elaborate
 
   subroutine grid_prolongation_old(grid)
     type(mg_grid), intent(inout), target :: grid

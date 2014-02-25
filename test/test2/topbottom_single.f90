@@ -2,9 +2,9 @@ program topbottom_single
 
   use t_mg
   use m_gs_CDS
+  use m_mg_save
 
   ! test libraries
-  use m_cube
   use m_mg_info
   use m_time
 
@@ -54,7 +54,7 @@ program topbottom_single
   call grid_setup(top)
 
   ! write out the initial cube file
-  call write_cube('initial_single',top)
+  call mg_save(top,'initial_single',MG_SAVE_CUBE)
 
   c1 = clock()
 
@@ -64,7 +64,7 @@ program topbottom_single
 
   print *,'Timing:', time
 
-  call write_cube('test_single',top)
+  call mg_save(top,'test_single',MG_SAVE_CUBE)
   
   call delete_grid(top)
   
