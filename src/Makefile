@@ -16,7 +16,7 @@ dep:
 		*.f90 *.F90
 
 # Grid objects
-OBJS = t_mg.o m_mg_save.o
+OBJS = t_mg.o t_mg_interp.o m_mg_save.o
 
 # Gauss-Seidel objects
 OBJS += m_gs_CDS.o
@@ -31,6 +31,8 @@ clean:
 	rm -f $(LIB_NAME) $(OBJS) *.mod *.MOD
 
 # DO NOT DELETE THIS LINE - used by make depend
-m_gs_CDS.o: t_mg.o
+m_gs_CDS.o: t_mg.o t_mg_interp.o
 m_gs_FOS.o: t_mg.o
+m_mg_save.o: t_mg.o
+t_mg_interp.o: t_mg.o
 m_gs.o: m_gs_FOS.o

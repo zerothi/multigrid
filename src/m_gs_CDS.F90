@@ -1,6 +1,7 @@
 module m_gs_CDS
 
   use t_mg
+  use t_mg_interp
   
   implicit none
 
@@ -53,17 +54,19 @@ contains
 
     do while ( associated(grid%child) ) 
 
-       ! allocate space for the child
-       call grid_bring_back(grid%child)
-       
-       ! restrict data to child
-       call grid_restriction(grid)
-
-       ! this will hold-back the grid
-       call grid_hold_back(grid)
-       
        ! next
        grid => grid%child
+
+       if ( .not. associated(grid%child) ) then
+
+          call grid_bring_back(grid)
+
+!$OMP parallel workshare
+          grid%V = 0._grid_p
+!$OMP end parallel workshare
+          call grid_setup(grid)
+
+       end if
 
     end do
 
@@ -135,7 +138,8 @@ contains
           itol = abs(old_sum - new_sum) * nr
           old_sum = new_sum
 
-          print '(a,3(tr1,e10.3))',' Tol,new_sum',itol,new_sum,grid_tolerance(pg)
+          print '(a,4(tr1,e10.3))',' Tol,new_sum',itol,new_sum,grid_tolerance(pg),pg%err
+          print '(100(tr1,e10.3))',pg%dVol,pg%err/pg%dVol,pg%err*pg%dVol
 
        end do
 
@@ -187,7 +191,7 @@ contains
        new_sum = grid_sum(grid) ! * nr
        tol = abs(old_sum - new_sum) * nr
        old_sum = new_sum
-       print '(a,3(tr1,e10.3))',' Tol,new_sum',tol,new_sum,grid_tolerance(grid)
+       print '(a,4(tr1,e10.3))',' Tol,new_sum',tol,new_sum,grid_tolerance(grid),grid%err
 
        ! print out number of iterations used on that cycle
        !write(*,'(2(a,i0),a)') &
@@ -211,8 +215,10 @@ contains
        ! the restriction cycle
        if ( .not. grid%child%enabled ) exit
 
-       call gs_step(grid)
-
+       do i = 1 , grid%steps
+          call gs_step(grid)
+       end do
+       
        ! allocate space for the child
        call grid_bring_back(grid%child)
        
@@ -235,7 +241,10 @@ contains
 
     do
        
-       call gs_step(grid)
+       do i = 1 , grid%steps
+          call gs_step(grid)
+       end do
+       !call gs_step(grid)
 
        if ( grid%layer == pg%layer ) exit
        
@@ -255,6 +264,9 @@ contains
   subroutine gs_step(grid)
     type(mg_grid), intent(inout) :: grid
 
+    ! initialize the max erro
+    grid%err = 0._grid_p
+
     grid%itt = grid%itt + 1
 
     !< communicate bounds >
@@ -264,30 +276,37 @@ contains
 
     call gs_bound(grid)
 
+    grid%err = sqrt(grid%err)
+
   end subroutine gs_step
 
   subroutine gs(grid)
     type(mg_grid), intent(inout) :: grid
     real(grid_p), pointer :: V(:,:,:)
-    real(grid_p) :: sor(2)
+    real(grid_p) :: sor(2), err, vv
     integer :: x,y,z
 
     V => grid%V
 
+    err = 0._grid_p
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
 !$OMP parallel do default(shared) collapse(3) &
-!$OMP   private(x,y,z) firstprivate(sor)
+!$OMP   private(x,y,z,vv) firstprivate(sor) reduction(max:err)
     do z = 2 , grid%n(3) - 1
        do y = 2 , grid%n(2) - 1
           do x = 2 , grid%n(1) - 1
              ! calculate the current contribution
-             V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val(grid,V,x,y,z)
+             vv = sor(1) * V(x,y,z) + sor(2) * val(grid,V,x,y,z)
+             err = max(err,(vv-V(x,y,z))**2)
+             V(x,y,z) = vv
           end do
        end do
     end do
 !$OMP end parallel do
+
+    grid%err = max(grid%err,err)
     
   end subroutine gs
 
@@ -310,7 +329,7 @@ contains
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: x
     real(grid_p), pointer :: V(:,:,:)
-    real(grid_p) :: sor(2), val_r(4)
+    real(grid_p) :: sor(2), val_r(4), vv, err
     integer :: dx,y,z
 
     V => grid%V
@@ -320,11 +339,12 @@ contains
        dx = -1
     end if
 
+    err = 0._grid_p
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
     
 !$OMP parallel default(shared) &
-!$OMP   private(y,z,val_r) firstprivate(sor,x)
+!$OMP   private(y,z,val_r,vv) firstprivate(sor,x)
 
     ! x, y, z-corners (notice that there are 8 corners)
 !$OMP sections
@@ -343,7 +363,7 @@ contains
     ! take the y plane at (x,z) = (1|grid%n(1),1)
 
     z = 1
-!$OMP do
+!$OMP do reduction(max:err)
     do y = 2 , grid%n(2) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
@@ -352,15 +372,19 @@ contains
           val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x+dx,y,z) * val_r(1) + &
                V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
                V(x,y,z+1) * val_r(4) )
+          
+          err = max(err,(vv-V(x,y,z))**2)
+
+          V(x,y,z) = vv
        end if
     end do
 !$OMP end do nowait
 
-!$OMP do
+!$OMP do reduction(max:err)
     do z = 2 , grid%n(3) - 1
        ! calculate the contribution in y = 1
        ! notice that z is different from each thread,
@@ -372,14 +396,20 @@ contains
           val_r(3) = val_rho(grid,x,y,z-1) * grid%a(3)
           val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
-          
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x+dx,y,z) * val_r(1) + &
                V(x,y+1,z) * val_r(2) + &
                V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
+          
+          err = max(err,(vv-V(x,y,z))**2)
+
+          V(x,y,z) = vv
        end if
        do y = 2 , grid%n(2) - 1
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_xb(grid,V,x,y,z,dx)
+          vv = sor(1) * V(x,y,z) + sor(2) * val_xb(grid,V,x,y,z,dx)
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end do
        y = grid%n(2)
        if ( .not. is_constant(grid,x,y,z) ) then
@@ -389,10 +419,12 @@ contains
           val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x+dx,y,z) * val_r(1) + &
                V(x,y-1,z) * val_r(2) + &
                V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end if
     end do
 !$OMP end do nowait
@@ -400,7 +432,7 @@ contains
     ! take the y plane at (x,z) = (1|grid%n(1),grid%n(3))
 
     z = grid%n(3)
-!$OMP do
+!$OMP do reduction(max:err)
     do y = 2 , grid%n(2) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
@@ -408,16 +440,23 @@ contains
           val_r(3) = val_rho(grid,x,y+1,z) * grid%a(2)
           val_r(4) = val_rho(grid,x,y,z-1) * grid%a(3)
           val_r = val_r / sum(val_r)
+
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x+dx,y,z) * val_r(1) + &
                V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
                V(x,y,z-1) * val_r(4) )
+          
+          err = max(err,(vv-V(x,y,z))**2)
+          
+          V(x,y,z) = vv
        end if
     end do
 !$OMP end do nowait
 
 !$OMP end parallel
+
+    grid%err = max(grid%err,err)
 
   end subroutine gs_xb
 
@@ -427,7 +466,7 @@ contains
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: y
     real(grid_p), pointer :: V(:,:,:)
-    real(grid_p) :: sor(2), val_r(4)
+    real(grid_p) :: sor(2), val_r(4), err, vv
     integer :: x,dy,z
 
     V => grid%V
@@ -437,16 +476,17 @@ contains
        dy = -1
     end if
 
+    err = 0._grid_p
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
 !$OMP parallel default(shared) &
-!$OMP   private(x,z,val_r) firstprivate(sor,y)
+!$OMP   private(x,z,val_r,vv) firstprivate(sor,y)
 
     ! take the x plane at (y,z) = (1|grid%n(2),1)
 
     z = 1
-!$OMP do
+!$OMP do reduction(max:err)
     do x = 2 , grid%n(1) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
@@ -455,15 +495,17 @@ contains
           val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) + &
                V(x,y+dy,z) * val_r(3) + &
                V(x,y,z+1) * val_r(4) )
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end if
     end do
 !$OMP end do nowait
     
-!$OMP do
+!$OMP do reduction(max:err)
     do z = 2 , grid%n(3) - 1
        ! calculate the contribution in y = 1
        ! notice that z is different from each thread,
@@ -476,14 +518,18 @@ contains
           val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x+1,y,z) * val_r(1) + &
                V(x,y+dy,z) * val_r(2) + &
                V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end if
 
        do x = 2 , grid%n(1) - 1
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_yb(grid,V,x,y,z,dy)
+          vv = sor(1) * V(x,y,z) + sor(2) * val_yb(grid,V,x,y,z,dy)
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end do
 
        x = grid%n(1)
@@ -494,10 +540,12 @@ contains
           val_r(4) = val_rho(grid,x,y,z+1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x-1,y,z) * val_r(1)+ &
                V(x,y+dy,z) * val_r(2) + &
                V(x,y,z-1) * val_r(3) + V(x,y,z+1) * val_r(4) )
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end if
     end do
 !$OMP end do nowait
@@ -505,7 +553,7 @@ contains
     ! take the x plane at (y,z) = (1|grid%n(2),grid%n(3))
 
     z = grid%n(3)
-!$OMP do
+!$OMP do reduction(max:err)
     do x = 2 , grid%n(1) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
@@ -514,15 +562,19 @@ contains
           val_r(4) = val_rho(grid,x,y,z-1) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x-1,y,z) * val_r(1) + V(x+1,y,z) * val_r(2) + &
                V(x,y+dy,z) * val_r(3) + &
                V(x,y,z-1) * val_r(4) )
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end if
     end do
 !$OMP end do nowait
 
 !$OMP end parallel
+
+    grid%err = max(grid%err,err)
 
   end subroutine gs_yb
 
@@ -532,7 +584,7 @@ contains
     type(mg_grid), intent(inout) :: grid
     integer, intent(in) :: z
     real(grid_p), pointer :: V(:,:,:)
-    real(grid_p) :: sor(2), val_r(4)
+    real(grid_p) :: sor(2), val_r(4), err, vv
     integer :: x,y,dz
 
     V => grid%V
@@ -542,13 +594,14 @@ contains
        dz = -1
     end if
 
+    err = 0._grid_p
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
 !$OMP parallel default(shared) &
-!$OMP   private(x,y,val_r) firstprivate(sor,z)
+!$OMP   private(x,y,val_r,vv) firstprivate(sor,z)
 
-!$OMP do
+!$OMP do reduction(max:err)
     do y = 2 , grid%n(2) - 1
        x = 1
        if ( .not. is_constant(grid,x,y,z) ) then
@@ -558,14 +611,18 @@ contains
           val_r(4) = val_rho(grid,x,y,z+dz) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x+1,y,z) * val_r(1) + &
                V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
                V(x,y,z+dz) * val_r(4) )
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end if
 
        do x = 2 , grid%n(1) - 1
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * val_zb(grid,V,x,y,z,dz)
+          vv = sor(1) * V(x,y,z) + sor(2) * val_zb(grid,V,x,y,z,dz)
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end do
 
        x = grid%n(1)
@@ -576,10 +633,12 @@ contains
           val_r(4) = val_rho(grid,x,y,z+dz) * grid%a(3)
           val_r = val_r / sum(val_r)
           
-          V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * (   &
+          vv = sor(1) * V(x,y,z) + sor(2) * (   &
                V(x-1,y,z) * val_r(1) + &
                V(x,y-1,z) * val_r(2) + V(x,y+1,z) * val_r(3) + &
                V(x,y,z+dz) * val_r(4) )
+          err = max(err,(vv-V(x,y,z))**2)
+          V(x,y,z) = vv
        end if
 
     end do
@@ -587,10 +646,12 @@ contains
 
 !$OMP end parallel
 
+    grid%err = max(grid%err,err)
+
   end subroutine gs_zb
 
   subroutine gs_corner(grid,V,sor,x,y,z,dx,dy,dz)
-    type(mg_grid), intent(in) :: grid
+    type(mg_grid), intent(inout) :: grid
     real(grid_p), intent(inout) :: V(:,:,:)
     real(grid_p), intent(in) :: sor(2)
     integer, intent(in) :: x,y,z,dx,dy,dz
@@ -604,7 +665,9 @@ contains
          V(x+dx,y,z) * val_r(1) + &
          V(x,y+dy,z) * val_r(2) + &
          V(x,y,z+dz) * val_r(3) 
-    V(x,y,z) = sor(1) * V(x,y,z) + sor(2) * vcur
+    val_r(1) = sor(1) * V(x,y,z) + sor(2) * vcur
+    grid%err = max(grid%err,(val_r(1)-V(x,y,z))**2)
+    V(x,y,z) = val_r(1)
   end subroutine gs_corner
 
   pure function val(grid,V,x,y,z)

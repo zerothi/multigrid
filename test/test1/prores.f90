@@ -1,6 +1,7 @@
 program prores_check
 
   use t_mg
+  use t_mg_interp
 
   ! test libraries
   use m_mg_info

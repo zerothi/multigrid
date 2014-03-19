@@ -49,7 +49,7 @@ program topbottom
   call grid_set(top,layer=5,sor=1.8_grid_p)
 
   do N = 1 , layers(top)
-     call grid_set(top,layer=N,sor=sor,tol=tol)
+     call grid_set(top,layer=N,sor=1.4_grid_p,tol=tol)
      !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
   call grid_set(top,layer=1,tol=tol)
@@ -96,6 +96,11 @@ program topbottom
 
   c1 = clock()
 
+  do N = 1 , layers(top)
+     call grid_set(top,layer=N,rp_method=2)
+  end do
+
+  !call mg_gs_cds(top,CDS_BOTTOM_UP)
   call mg_gs_cds(top,CDS_W_CYCLE)
 
   time = timing(c1)
