@@ -1,0 +1,3 @@
+[submodule "ncdf"]
+	path = ncdf
+	url = git@github.com:zerothi/ncdf.git
