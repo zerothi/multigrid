@@ -37,8 +37,10 @@ module t_mg
      ! The max change in the grid
      real(grid_p) :: err
      
-     ! the restriction/prolongation method
-     integer :: RES_PRO_method = 1
+     ! the prolongation method
+     integer :: PRO_method = 1
+     ! the restriction method
+     integer :: RES_method = 1
 
   end type mg_grid
 
@@ -56,7 +58,7 @@ module t_mg
 
 contains
 
-  subroutine init_grid(grid, n, cell, boxes, tol, offset, sor)
+  subroutine init_grid(grid, n, cell, boxes, tol, offset, sor, steps)
     type(mg_grid), intent(inout) :: grid
     integer,       intent(in)    :: n(3)
     real(dp),      intent(in)    :: cell(3,3)
@@ -64,6 +66,7 @@ contains
     real(grid_p),  intent(in), optional :: tol
     real(dp),      intent(in), optional :: offset(3)
     real(grid_p),  intent(in), optional :: sor
+    integer,       intent(in), optional :: steps
 
     real(dp) :: celll(3), tmp
     integer  :: i
@@ -71,7 +74,8 @@ contains
     ! ensure it is empty
     call delete_grid(grid)
 
-    grid%steps = 4
+    grid%steps = 2
+    if ( present(steps) ) grid%steps = steps
 
     ! create the ax, ay, az pre-factors for the 3D Poisson solver
     ! note that cell is the cell-size for the total cell
@@ -196,10 +200,10 @@ contains
 
   end subroutine init_grid_children_half
 
-  subroutine grid_set(grid,sor,tol,layer,steps,rp_method)
+  subroutine grid_set(grid,sor,tol,layer,steps,restrict,prolong)
     type(mg_grid), intent(inout), target :: grid
     real(grid_p), intent(in), optional :: sor, tol
-    integer, intent(in), optional :: layer, steps, rp_method
+    integer, intent(in), optional :: layer, steps, restrict, prolong
 
     type(mg_grid), pointer :: tmp_grid
 
@@ -216,8 +220,10 @@ contains
          tmp_grid%tol = tol
     if ( present(steps) ) &
          tmp_grid%steps = steps
-    if ( present(rp_method) ) &
-         tmp_grid%RES_PRO_method = rp_method
+    if ( present(restrict) ) &
+         tmp_grid%RES_method = restrict
+    if ( present(prolong) ) &
+         tmp_grid%PRO_method = prolong
 
   end subroutine grid_set
 
@@ -261,7 +267,7 @@ contains
     ! TODO currently this does not work with skewed axis
 
 
-!$OMP parallel do default(shared) private(x,y,z,xyz,dyz,dz)
+!$OMP parallel do default(shared), private(x,y,z,xyz,dyz,dz)
     do z = 0 , grid%n(3) - 1
     dz  = grid%dL(:,3) * z + offset ! we immediately add the offset
     do y = 0 , grid%n(2) - 1
@@ -347,16 +353,25 @@ contains
 
   end subroutine grid_add_line
 
-  subroutine grid_setup(grid)
+  subroutine grid_setup(grid,init)
     type(mg_grid), intent(inout) :: grid
+    logical, intent(in), optional :: init
     integer :: x,y,z
     real(grid_p), pointer :: V(:,:,:)
 
     V => grid%V
+    
+    if ( present(init) ) then
+       if ( init ) then
+!$OMP parallel workshare default(shared)
+          V = 0._grid_p
+!$OMP end parallel workshare
+       end if
+    end if
 
     ! set all boxes to their values if constant
-!$OMP parallel do default(shared) private(x,y,z) &
-!$OMP    collapse(3)
+!$OMP parallel do default(shared), private(x,y,z), &
+!$OMP&    collapse(3)
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
@@ -383,17 +398,14 @@ contains
 
   subroutine grid_bring_back(grid)
     type(mg_grid), intent(inout) :: grid
+
     ! ensure that it is empty
     call grid_hold_back(grid)
+
+    ! Re-allocate
     allocate(grid%V(grid%n(1),grid%n(2),grid%n(3)))
     allocate(grid%g(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
     allocate(grid%g_s(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
-
-!$OMP parallel workshare default(shared)
-    grid%V   = 0._grid_p
-    grid%g   = 0._grid_p
-    grid%g_s = 0._grid_p
-!$OMP end parallel workshare
 
   end subroutine grid_bring_back
 
@@ -584,8 +596,8 @@ contains
     V => grid%V
 
     sum = 0._grid_p
-!$OMP parallel do default(shared) private(x,y,z) &
-!$OMP   reduction(+:sum) collapse(3)
+!$OMP parallel do default(shared), private(x,y,z), &
+!$OMP&   reduction(+:sum), collapse(3)
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
@@ -602,8 +614,8 @@ contains
     integer :: x,y,z,elem
 
     elem = 0
-!$OMP parallel do default(shared) private(x,y,z) &
-!$OMP   reduction(+:elem) collapse(3)
+!$OMP parallel do default(shared), private(x,y,z), &
+!$OMP&   reduction(+:elem), collapse(3)
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
@@ -649,7 +661,7 @@ contains
        vmin = min(vmin,grid%box(i)%val)
        vmax = max(vmax,grid%box(i)%val)
     end do
-    tol = grid%tol * abs(vmax - vmin) / maxval(grid%n) !grid_non_constant_elem(grid)
+    tol = grid%tol * abs(vmax - vmin) !/ maxval(grid%n) !grid_non_constant_elem(grid)
   end function grid_tolerance
 
 end module t_mg

@@ -132,16 +132,15 @@ contains
 
   subroutine mg_cdf(grid,name)
 
-    use netcdf
+    use nf_ncdf
 
     type(mg_grid), intent(in) :: grid
     character(len=*), intent(in) :: name
 
-    integer :: ncid, i
+    type(hNCDF) :: ncdf
 
     real(grid_p), pointer :: V(:,:,:)
     character(len=200) :: fname
-    logical :: exist
 
     integer :: dx,dy,dz, d3, oid, cid, vid
     integer :: p

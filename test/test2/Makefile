@@ -26,12 +26,16 @@ dep:
 		*.f90 *.F90
 
 test1: topbottom.o
-	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME)
+	$(FC) -o $@ $^ $(FFLAGS) $(LIBS) $(LIB_TEST_NAME) $(LIB_NAME)
+ifdef RUN_TEST
 	./$@
+endif
 
 test2: topbottom_single.o
-	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME)
+	$(FC) -o $@ $^ $(FFLAGS) $(LIBS) $(LIB_TEST_NAME) $(LIB_NAME)
+ifdef RUN_TEST
 	./$@
+endif
 
 clean:
 	rm -f test1 test2 $(OBJS) *.mod *.MOD

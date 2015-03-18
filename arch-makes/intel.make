@@ -11,6 +11,8 @@ FFLAGS= -O0 -g -check bounds -traceback -fp-model strict -I$(INTEL_PATH)/mkl/inc
 
 FFLAGS += -openmp
 
+LIBS = -openmp
+
 ARFLAGS = cru
 
 .F90.o:

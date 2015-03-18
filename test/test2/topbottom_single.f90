@@ -49,10 +49,6 @@ program topbottom_single
 
   call print_grid(top)
 
-  ! initialize the grid
-  call grid_bring_back(top)
-  call grid_setup(top)
-
   ! write out the initial cube file
   call mg_save(top,'initial_single',MG_SAVE_CUBE)
 

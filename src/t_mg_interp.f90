@@ -4,32 +4,37 @@ module t_mg_interp
 
   implicit none
 
+  integer, parameter :: INTERP_FULL = 1 
+  integer, parameter :: INTERP_HALF = 2
+
 contains
 
   subroutine grid_restriction(grid)
     type(mg_grid), intent(inout) :: grid
 
-    select case ( grid%RES_PRO_method )
-    case ( 1 ) 
+    select case ( grid%RES_method )
+    case ( INTERP_FULL ) 
        call grid_restriction_full(grid)
-    case ( 2 )
+    case ( INTERP_HALF ) 
        call grid_restriction_half(grid)
     case default
        call grid_restriction_full(grid)
     end select
+
   end subroutine grid_restriction
 
   subroutine grid_prolongation(grid)
     type(mg_grid), intent(inout) :: grid
 
-    select case ( grid%RES_PRO_method )
-    case ( 1 ) 
+    select case ( grid%PRO_method )
+    case ( INTERP_FULL ) 
        call grid_prolongation_full(grid)
-    case ( 2 )
+    case ( INTERP_HALF )
        call grid_prolongation_half(grid)
     case default
        call grid_prolongation_full(grid)
     end select
+
   end subroutine grid_prolongation
 
   subroutine grid_restriction_new(grid)
@@ -53,22 +58,24 @@ contains
     child => grid%child
     Vc => child%V
 
-!$OMP parallel default(shared) private(x,px,y,py,z,pz,vt)
+    ! Check that the grid is consistent with the algorithm
+    if ( any( (grid%n-1)/2 < child%n ) ) then
+       stop 'Grid sizes does not conform, res_new'
+    end if
 
-    ! initialize the child
-!$OMP workshare
-    Vc = 0._grid_p
-!$OMP end workshare
+!$OMP parallel default(shared)
 
     ! we employ full-weighting
 
-!$OMP do
+!$OMP single
     do z = 1 , child%n(3)
     pz = z * 2
     if ( pz >= grid%n(3) ) cycle
+!$OMP task firstprivate(z,pz), private(y,py)
     do y = 1 , child%n(2)
     py = y * 2
     if ( py >= grid%n(2) ) cycle
+!$OMP task firstprivate(y,py), private(vt)
     do x = 1 , child%n(1)
        px = x * 2
        if ( px >= grid%n(1) ) cycle
@@ -103,9 +110,11 @@ contains
        vt = vt + V(px,py+1,pz+1) * f3
 
     end do
+!$OMP end task
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
 
 !$OMP end parallel
 
@@ -136,22 +145,24 @@ contains
     child => grid%child
     Vc => child%V
 
-!$OMP parallel default(shared) private(x,cx,y,cy,z,cz,vt)
+    ! Check that the grid is consistent with the algorithm
+    if ( any( (grid%n-1)/2 < child%n ) ) then
+       stop 'Grid sizes does not conform, res_new'
+    end if
 
-    ! initialize the child
-!$OMP workshare
-    Vc = 0._grid_p
-!$OMP end workshare
+!$OMP parallel default(shared), private(vt)
 
     ! we employ full-weighting
 
-!$OMP do
+!$OMP single
     do z = 2 , grid%n(3) - 1 , 2
     cz = z / 2
 
+!$OMP task firstprivate(z,cz), private(y,cy)
     do y = 2 , grid%n(2) - 1 , 2
     cy = y / 2
 
+!$OMP task firstprivate(y,cy), private(x,cx)
     do x = 2 , grid%n(1) - 1 , 2
        cx = x / 2
 
@@ -193,9 +204,11 @@ contains
        vt = vt + V(x,y,z) * f1
 
     end do
+!$OMP end task
     end do
+!$OMP end task
     end do
-!$OMP end do nowait
+!$OMP end single nowait
 
 !$OMP end parallel
 
@@ -223,22 +236,24 @@ contains
     child => grid%child
     Vc => child%V
 
-!$OMP parallel default(shared) private(x,cx,y,cy,z,cz,vt)
+    ! Check that the grid is consistent with the algorithm
+    if ( any( (grid%n-1)/2 < child%n ) ) then
+       stop 'Grid sizes does not conform, res_half'
+    end if
 
-    ! initialize the child
-!$OMP workshare
-    Vc = 0._grid_p
-!$OMP end workshare
+!$OMP parallel default(shared)
 
     ! we employ full-weighting
 
-!$OMP do
+!$OMP single
     do z = 2 , grid%n(3) - 1 , 2
     cz = z / 2
 
+!$OMP task firstprivate(z,cz), private(y,cy)
     do y = 2 , grid%n(2) - 1 , 2
     cy = y / 2
 
+!$OMP task firstprivate(y,cy), private(x,cx,vt)
     do x = 2 , grid%n(1) - 1 , 2
        cx = x / 2
 
@@ -270,9 +285,11 @@ contains
        vt = vt + V(x,y,z) * f1
 
     end do
+!$OMP end task
     end do
+!$OMP end task
     end do
-!$OMP end do nowait
+!$OMP end single nowait
 
 !$OMP end parallel
 
@@ -302,23 +319,25 @@ contains
     parent => grid%parent
     Vp => parent%V
 
-    ! initialize the parent to zero
-!$OMP parallel default(shared) private(x,px,y,py,z,pz,vt)
+    ! Check that the grid is consistent with the algorithm
+    if ( any( (parent%n-1)/2 < grid%n ) ) then
+       stop 'Grid sizes does not conform, pro full'
+    end if
 
-!$OMP workshare
-    Vp = 0._grid_p
-!$OMP end workshare
+!$OMP parallel default(shared)
 
     ! do middle loop
-!$OMP do
+!$OMP single
     do pz = 1 , parent%n(3)
     z = max(2, pz / 2)
     if ( z >= grid%n(3) ) cycle
 
+!$OMP task firstprivate(z,pz), private(y,py)
     do py = 1 , parent%n(2)
     y = max(2,py / 2 - py / grid%n(2))
     if ( y >= grid%n(2) ) cycle
 
+!$OMP task firstprivate(y,py), private(x,px,vt)
     do px = 1 , parent%n(1)
        x = max(2,px / 2 - px / grid%n(1))
        if ( x >= grid%n(1) ) cycle
@@ -364,9 +383,11 @@ contains
        vt = vt + V(x+1,y+1,z+1) * f4 ! 8
        
     end do
+!$OMP end task
     end do
+!$OMP end task
     end do
-!$OMP end do nowait
+!$OMP end single nowait
 
 !$OMP end parallel
 
@@ -393,23 +414,25 @@ contains
     parent => grid%parent
     Vp => parent%V
 
-    ! initialize the parent to zero
-!$OMP parallel default(shared) private(x,px,y,py,z,pz,vt)
+    ! Check that the grid is consistent with the algorithm
+    if ( any( (parent%n-1)/2 < grid%n ) ) then
+       stop 'Grid sizes does not conform, pro half'
+    end if
 
-!$OMP workshare
-    Vp = 0._grid_p
-!$OMP end workshare
+!$OMP parallel default(shared)
 
     ! do middle loop
-!$OMP do
+!$OMP single
     do pz = 1 , parent%n(3)
     z = max(2, pz / 2)
     if ( z >= grid%n(3) ) cycle
 
+!$OMP task firstprivate(z,pz), private(y,py)
     do py = 1 , parent%n(2)
     y = max(2,py / 2 - py / grid%n(2))
     if ( y >= grid%n(2) ) cycle
 
+!$OMP task firstprivate(y,py), private(x,px,vt)
     do px = 1 , parent%n(1)
        x = max(2,px / 2 - px / grid%n(1))
        if ( x >= grid%n(1) ) cycle
@@ -445,9 +468,11 @@ contains
        vt = vt + V(x,y+1,z+1) * f3
 
     end do
+!$OMP end task
     end do
+!$OMP end task
     end do
-!$OMP end do nowait
+!$OMP end single nowait
 
 !$OMP end parallel
 
@@ -477,6 +502,11 @@ contains
     parent => grid%parent
     Vp => parent%V
 
+    ! Check that the grid is consistent with the algorithm
+    if ( any( (parent%n-1)/2 < grid%n ) ) then
+       stop 'Grid sizes does not conform'
+    end if
+
     ! currently this prolongation only accepts
     ! grids of double +1/+2 sizes
     do x = 1 , 3
@@ -491,20 +521,17 @@ contains
     end do
           
     ! initialize the parent to zero
-!$OMP parallel default(shared) private(x,px,y,py,z,pz,v2,v4,v8)
-
-!$OMP workshare
-    Vp = 0._grid_p
-!$OMP end workshare
+!$OMP parallel default(shared) private(v2,v4,v8)
 
     ! ensure to set the top corners correctly
 
+!$OMP single
     z  = 1
     pz = 1
-!$OMP do 
     do y = 1 , grid%n(2)
     py = 2 * y
     if ( one_larger(2) ) cycle
+!$OMP task firstprivate(y,py), private(x,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( one_larger(1) ) cycle
@@ -532,12 +559,19 @@ contains
 !call print_t(px,py,pz,'x1')
 
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
+
+! Wait until all tasks have completed
+!$OMP taskwait
+
     if ( grid%n(2)*2 + 1 /= parent%n(2) ) then
+!$OMP single
     y  = grid%n(2)
     py = parent%n(2)
-!$OMP do 
+!$OMP end single ! this has an implicit barrier
+!$OMP do private(x,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( one_larger(1) ) cycle
@@ -564,14 +598,16 @@ contains
 
     end do
 !$OMP end do
+
     end if
 
+!$OMP single
     y  = 1
     py = 1
-!$OMP do 
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( one_larger(3) ) cycle
+!$OMP task firstprivate(z,pz), private(x,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( one_larger(1) ) cycle
@@ -599,16 +635,20 @@ contains
 !call print_t(px,py,pz,'y1')
 
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
 
+!$OMP taskwait
+
+!$OMP single
     x  = 1
     px = 1
-!$OMP do 
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( one_larger(3) ) cycle
     if ( parent%n(3) <= pz + 1 ) cycle
+!$OMP task firstprivate(z,pz), private(y,py)
     do y = 1 , grid%n(2)
        py = 2 * y
        if ( one_larger(2) ) cycle
@@ -636,16 +676,21 @@ contains
 !call print_t(px,py,pz,'z1')
 
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
+
+!$OMP taskwait
     
-!$OMP do 
+!$OMP single
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( one_larger(3) ) cycle
+!$OMP task firstprivate(z,pz), private(y,py)
     do y = 1 , grid%n(2)
     py = 2 * y
     if ( one_larger(2) ) cycle
+!$OMP task firstprivate(y,py), private(x,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( one_larger(1) ) cycle
@@ -690,17 +735,23 @@ contains
        Vp(px,py,pz)   = V(x,y,z)
 
     end do
+!$OMP end task
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
 
+!$OMP taskwait
+
+    if ( .not. one_larger(3) ) then
+!$OMP single
     z = grid%n(3)
     pz = parent%n(3)
-    if ( .not. one_larger(3) ) then
-!$OMP do 
+
     do y = 1 , grid%n(2)
     py = 2 * y
     if ( parent%n(2) <= py + 1 ) cycle
+!$OMP task firstprivate(y,py), private(x,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( parent%n(1) <= px + 1 ) cycle
@@ -733,13 +784,19 @@ contains
        Vp(px,py+1,pz) = Vp(px,py+1,pz) + v2
 
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
+
+!$OMP taskwait
+
     end if
-!$OMP do 
+
+!$OMP single
     do y = 1 , grid%n(2)
     py = 2 * y
     if ( parent%n(2) <= py + 1 ) cycle
+!$OMP task firstprivate(y,py), private(x,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( parent%n(1) <= px + 1 ) cycle
@@ -763,16 +820,21 @@ contains
        Vp(px,py,pz) = Vp(px,py,pz) + v8
 
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
 
+!$OMP taskwait
+
+
+!$OMP single
     y = grid%n(2)
     py = parent%n(2)
     if ( y * 2 /= py ) then
-!$OMP do 
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( parent%n(3) <= pz + 1 ) cycle
+!$OMP task firstprivate(z,pz), private(y,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( parent%n(1) <= px + 1 ) cycle
@@ -805,13 +867,17 @@ contains
        Vp(px,py,pz+1) = Vp(px,py,pz+1) + v2
 
     end do
+!$OMP end task
     end do
-!$OMP end do
     end if
-!$OMP do 
+!$OMP end single nowait
+!$OMP taskwait
+
+!$OMP single
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( parent%n(3) <= pz + 1 ) cycle
+!$OMP task firstprivate(z,pz), private(x,px)
     do x = 1 , grid%n(1)
        px = 2 * x
        if ( parent%n(1) <= px + 1 ) cycle
@@ -833,16 +899,20 @@ contains
        Vp(px,py,pz)   = Vp(px,py,pz) + v8
 
     end do
+!$OMP end task
     end do
-!$OMP end do
+!$OMP end single nowait
 
+!$OMP taskwait
+
+!$OMP single
     x = grid%n(1)
     px = parent%n(1)
     if ( x * 2 /= px ) then
-!$OMP do 
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( parent%n(3) <= pz + 1 ) cycle
+!$OMP task firstprivate(z,pz), private(y,py)
     do y = 1 , grid%n(2)
        py = 2 * y
        if ( parent%n(2) <= py + 1 ) cycle
@@ -875,13 +945,18 @@ contains
        Vp(px,py,pz+1) = Vp(px,py,pz+1) + v2
 
     end do
+!$OMP end task
     end do
-!$OMP end do
     end if
-!$OMP do 
+!$OMP end single nowait
+
+!$OMP taskwait
+
+!$OMP single
     do z = 1 , grid%n(3)
     pz = 2 * z
     if ( parent%n(3) <= pz + 1 ) cycle
+!$OMP task firstprivate(z,pz), private(y,py)
     do y = 1 , grid%n(2)
        py = 2 * y
        if ( parent%n(2) <= py + 1 ) cycle
@@ -903,8 +978,11 @@ contains
        Vp(px,py,pz)   = Vp(px,py,pz) + v8
 
     end do
+!$OMP end task
     end do
-!$OMP end do nowait
+!$OMP end single nowait
+
+!$OMP taskwait
 
 !$OMP end parallel
 

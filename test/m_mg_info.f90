@@ -23,7 +23,7 @@ contains
     do while ( associated(grid) )
        write(*,trim(fmt)//'a,i0,a,3(i4,tr1))')' -- Layer: ',grid%layer,' size: ',grid%n
        write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid_tolerance(grid)
-       write(*,trim(fmt)//'a,e10.3)')' -- SOR: ',grid%sor
+       write(*,trim(fmt)//'a,f6.4)')' -- SOR: ',grid%sor
        write(*,trim(fmt)//'a,3(tr1,e10.4))')' -- a(3): ',grid%a
        if ( associated(grid%child) ) then
           write(*,trim(fmt)//'a)',advance='NO')' -- Child: '
@@ -65,5 +65,35 @@ contains
          box%val,' constant?: ',box%constant, &
          'place: ',box%place
   end subroutine print_box
+
+  ! Create a script for python to plot the grid in matplotlib
+  subroutine mtpl_grid(top,out)
+    type(mg_grid), intent(in), target :: top
+    integer, intent(in), optional :: out
+    
+    type(mg_grid), pointer :: grid
+    
+    integer :: lu
+    
+    lu = 6
+    if ( present(out) ) lu = out
+    
+    write(lu,'(a)') "#!/usr/bin/env python"
+    write(lu,'(a)') 
+    write(lu,'(a)') "import matplotlib.pyplot as plt"
+    write(lu,'(a)') "from mpl_toolkits.mplot3d import Axes3D"
+    grid => top
+    
+    do while ( associated(grid) )
+       
+       write(lu,'(a)') "fig = plt.figure()"
+       write(lu,'(a)') "ax = fig.add_subplot(111, projection='3d')"
+       
+       ! Create full box
+
+       grid => grid%child
+    end do
+    
+  end subroutine mtpl_grid
 
 end module m_mg_info

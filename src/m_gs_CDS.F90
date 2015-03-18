@@ -18,14 +18,26 @@ module m_gs_CDS
 
 contains
 
-
-  subroutine mg_gs_cds(top_grid,method)
+  subroutine mg_gs_cds(top_grid,method, init)
     type(mg_grid), intent(inout), target :: top_grid
     integer, intent(in), optional :: method
+    logical, intent(in), optional :: init
     integer :: lmethod 
 
     lmethod = CDS_BOTTOM_UP
     if ( present(method) ) lmethod = method
+
+    ! We default to initialization of the variables and
+    ! the arrays.
+    ! The user may say "no" to initialization which 
+    ! enables the user to change the initial guess
+    if ( .not. present(init) ) then
+       call grid_bring_back(top_grid)
+       call grid_setup(top_grid, init = .true. )
+    else if ( init ) then
+       call grid_bring_back(top_grid)
+       call grid_setup(top_grid, init = .true. )
+    end if
 
     select case ( lmethod )
     case ( CDS_W_CYCLE )
@@ -61,9 +73,6 @@ contains
 
           call grid_bring_back(grid)
 
-!$OMP parallel workshare
-          grid%V = 0._grid_p
-!$OMP end parallel workshare
           call grid_setup(grid)
 
        end if
@@ -138,8 +147,8 @@ contains
           itol = abs(old_sum - new_sum) * nr
           old_sum = new_sum
 
-          print '(a,4(tr1,e10.3))',' Tol,new_sum',itol,new_sum,grid_tolerance(pg),pg%err
-          print '(100(tr1,e10.3))',pg%dVol,pg%err/pg%dVol,pg%err*pg%dVol
+          print '(a,i6,3(tr1,f10.7))',' itt ',pg%itt-old_itt, &
+               itol,new_sum*nr,pg%err
 
        end do
 
@@ -178,7 +187,7 @@ contains
 
     tol = grid_tolerance(grid) + 1._grid_p
     
-    old_sum = grid_sum(grid) ! * nr
+    old_sum = grid_sum(grid)
 
     old_itt = grid%itt
 
@@ -188,10 +197,11 @@ contains
 
        ! the tolerance is the difference between the 
        ! sum of the before iteration and the new iteration
-       new_sum = grid_sum(grid) ! * nr
+       new_sum = grid_sum(grid)
        tol = abs(old_sum - new_sum) * nr
        old_sum = new_sum
-       print '(a,4(tr1,e10.3))',' Tol,new_sum',tol,new_sum,grid_tolerance(grid),grid%err
+       print '(a,i6,3(tr1,f10.7))',' itt ',grid%itt-old_itt, &
+            tol,new_sum*nr,grid%err
 
        ! print out number of iterations used on that cycle
        !write(*,'(2(a,i0),a)') &
@@ -204,10 +214,13 @@ contains
   subroutine gs_V(pg,cg)
     type(mg_grid), intent(inout), target :: pg, cg
     type(mg_grid), pointer :: grid
-    integer :: i,n(3), cur_layer
+    integer :: i, n(3), cur_layer, ig
+    real(grid_p) :: tol, old_sum, new_sum
+    real(grid_p) :: nr
     
     grid => pg
 
+    ig = 0
     ! move down
     do while ( grid%layer /= cg%layer ) 
 
@@ -215,9 +228,18 @@ contains
        ! the restriction cycle
        if ( .not. grid%child%enabled ) exit
 
+       nr = 1._grid_p / (grid_non_constant_elem(grid))
+       old_sum = grid_sum(grid)
+
        do i = 1 , grid%steps
           call gs_step(grid)
        end do
+
+       ig = ig + 1
+       new_sum = grid_sum(grid)
+       tol = abs(old_sum - new_sum) * nr
+       print '(tr6,a,i6,2(tr1,f10.7))',repeat(' ',ig * 2), &
+            grid%steps,tol,new_sum*nr
        
        ! allocate space for the child
        call grid_bring_back(grid%child)
@@ -233,18 +255,22 @@ contains
 
     end do
 
-    do i = 1 , grid%steps
-       call gs_step(grid)
-    end do
-
     ! go back in cycle...
-
+    ig = ig + 1
     do
        
+       nr = 1._grid_p / (grid_non_constant_elem(grid))
+       old_sum = grid_sum(grid)
+
        do i = 1 , grid%steps
           call gs_step(grid)
        end do
-       !call gs_step(grid)
+
+       new_sum = grid_sum(grid)
+       tol = abs(old_sum - new_sum) * nr
+       print '(tr6,a,i6,2(tr1,f10.7))',repeat(' ',ig * 2), &
+            grid%steps,tol,new_sum*nr
+       ig = ig - 1
 
        if ( grid%layer == pg%layer ) exit
        
@@ -263,8 +289,9 @@ contains
 
   subroutine gs_step(grid)
     type(mg_grid), intent(inout) :: grid
+    real(grid_p) :: err
 
-    ! initialize the max erro
+    ! initialize the max error
     grid%err = 0._grid_p
 
     grid%itt = grid%itt + 1
@@ -276,6 +303,7 @@ contains
 
     call gs_bound(grid)
 
+    ! Take the square root of the abs error
     grid%err = sqrt(grid%err)
 
   end subroutine gs_step
@@ -292,8 +320,8 @@ contains
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
-!$OMP parallel do default(shared) collapse(3) &
-!$OMP   private(x,y,z,vv) firstprivate(sor) reduction(max:err)
+!$OMP parallel do default(shared), collapse(3), &
+!$OMP&private(x,y,z,vv), firstprivate(sor), reduction(max:err)
     do z = 2 , grid%n(3) - 1
        do y = 2 , grid%n(2) - 1
           do x = 2 , grid%n(1) - 1
@@ -339,12 +367,11 @@ contains
        dx = -1
     end if
 
-    err = 0._grid_p
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
     
-!$OMP parallel default(shared) &
-!$OMP   private(y,z,val_r,vv) firstprivate(sor,x)
+!$OMP parallel default(shared), private(y,z,val_r,vv,err), &
+!$OMP firstprivate(sor,x)
 
     ! x, y, z-corners (notice that there are 8 corners)
 !$OMP sections
@@ -362,8 +389,10 @@ contains
 
     ! take the y plane at (x,z) = (1|grid%n(1),1)
 
+    err = 0._grid_p
+
     z = 1
-!$OMP do reduction(max:err)
+!$OMP do
     do y = 2 , grid%n(2) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
@@ -384,7 +413,7 @@ contains
     end do
 !$OMP end do nowait
 
-!$OMP do reduction(max:err)
+!$OMP do
     do z = 2 , grid%n(3) - 1
        ! calculate the contribution in y = 1
        ! notice that z is different from each thread,
@@ -432,7 +461,7 @@ contains
     ! take the y plane at (x,z) = (1|grid%n(1),grid%n(3))
 
     z = grid%n(3)
-!$OMP do reduction(max:err)
+!$OMP do
     do y = 2 , grid%n(2) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x+dx,y,z) * grid%a(1)
@@ -454,9 +483,12 @@ contains
     end do
 !$OMP end do nowait
 
-!$OMP end parallel
-
+   ! Update all grid%err, atomically
+!$OMP atomic
     grid%err = max(grid%err,err)
+!$OMP end atomic
+
+!$OMP end parallel
 
   end subroutine gs_xb
 
@@ -476,17 +508,17 @@ contains
        dy = -1
     end if
 
-    err = 0._grid_p
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
-!$OMP parallel default(shared) &
-!$OMP   private(x,z,val_r,vv) firstprivate(sor,y)
+!$OMP parallel default(shared), private(x,z,val_r,vv,err), &
+!$OMP firstprivate(sor,y)
 
     ! take the x plane at (y,z) = (1|grid%n(2),1)
+    err = 0._grid_p
 
     z = 1
-!$OMP do reduction(max:err)
+!$OMP do
     do x = 2 , grid%n(1) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
@@ -505,7 +537,7 @@ contains
     end do
 !$OMP end do nowait
     
-!$OMP do reduction(max:err)
+!$OMP do
     do z = 2 , grid%n(3) - 1
        ! calculate the contribution in y = 1
        ! notice that z is different from each thread,
@@ -553,7 +585,7 @@ contains
     ! take the x plane at (y,z) = (1|grid%n(2),grid%n(3))
 
     z = grid%n(3)
-!$OMP do reduction(max:err)
+!$OMP do
     do x = 2 , grid%n(1) - 1
        if ( .not. is_constant(grid,x,y,z) ) then
           val_r(1) = val_rho(grid,x-1,y,z) * grid%a(1)
@@ -572,9 +604,11 @@ contains
     end do
 !$OMP end do nowait
 
-!$OMP end parallel
-
+!$OMP atomic
     grid%err = max(grid%err,err)
+!$OMP end atomic
+
+!$OMP end parallel
 
   end subroutine gs_yb
 
@@ -594,14 +628,15 @@ contains
        dz = -1
     end if
 
-    err = 0._grid_p
     sor(2) = grid%sor
     sor(1) = 1._grid_p - sor(2)
 
-!$OMP parallel default(shared) &
-!$OMP   private(x,y,val_r,vv) firstprivate(sor,z)
+!$OMP parallel default(shared), private(x,y,val_r,vv,err), &
+!$OMP firstprivate(sor,z)
 
-!$OMP do reduction(max:err)
+    err = 0._grid_p
+
+!$OMP do
     do y = 2 , grid%n(2) - 1
        x = 1
        if ( .not. is_constant(grid,x,y,z) ) then
@@ -644,9 +679,11 @@ contains
     end do
 !$OMP end do nowait
 
-!$OMP end parallel
-
+!$OMP atomic
     grid%err = max(grid%err,err)
+!$OMP end atomic
+
+!$OMP end parallel
 
   end subroutine gs_zb
 
@@ -666,7 +703,9 @@ contains
          V(x,y+dy,z) * val_r(2) + &
          V(x,y,z+dz) * val_r(3) 
     val_r(1) = sor(1) * V(x,y,z) + sor(2) * vcur
-    grid%err = max(grid%err,(val_r(1)-V(x,y,z))**2)
+    ! Currently there could be race-conditions for this
+    ! value, hence we skip it
+    !grid%err = max(grid%err,(val_r(1)-V(x,y,z))**2)
     V(x,y,z) = val_r(1)
   end subroutine gs_corner
 

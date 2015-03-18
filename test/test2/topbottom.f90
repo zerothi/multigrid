@@ -23,7 +23,7 @@ program topbottom
   call init_timing()
 
   ! tolerance for the convergence
-  tol = 1.e-3_grid_p
+  tol = 1.e-4_grid_p
   sor = 1.8_grid_p
 
   ! initialize the initial grid
@@ -64,12 +64,13 @@ program topbottom
 
   call print_grid(top)
 
-  ! initialize the grid
   call grid_bring_back(top)
-  call grid_setup(top)
+  call grid_setup(top, init = .true. ) ! only for saving initial
 
   ! write out the initial cube file
   call mg_save(top,'initial',MG_SAVE_CUBE)
+
+  call grid_hold_back(top)
 
   c1 = clock()
 
@@ -82,7 +83,7 @@ program topbottom
   ! write out the initial cube file
   call mg_save(top,'topbottom_bu',MG_SAVE_CUBE)
 
-  call grid_setup(top)
+  call grid_hold_back(top)
 
   c1 = clock()
 

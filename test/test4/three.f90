@@ -1,6 +1,7 @@
 program topbottom
 
   use t_mg
+  use t_mg_interp, only : INTERP_HALF, INTERP_FULL
   use m_gs_CDS
   use m_mg_save
 
@@ -32,27 +33,28 @@ program topbottom
   cell(:,3) = (/0._dp,0._dp,30._dp/)
 
   ! we create it to be 100x100x100
-  nn = 200
+  nn = (/360,240,360/)
+  nn = 100
   ! create grid
   call init_grid(top,nn,cell,7,tol=tol)
 
   write(*,*)'>> Created initial grid...'
 
   ! create all children
-  call init_grid_children_half(top,max_layer=4)
+  call init_grid_children_half(top,max_layer=8)
 
   ! manually set the sor-parameter
   call grid_set(top,layer=1,sor=1.8_grid_p)
   call grid_set(top,layer=2,sor=1.8_grid_p)
   call grid_set(top,layer=3,sor=1.8_grid_p)
   call grid_set(top,layer=4,sor=1.8_grid_p)
-  call grid_set(top,layer=5,sor=1.8_grid_p)
 
   do N = 1 , layers(top)
-     call grid_set(top,layer=N,sor=1.4_grid_p,tol=tol)
+     call grid_set(top,layer=N,sor=1.8_grid_p,tol=tol)
      !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
-  call grid_set(top,layer=1,tol=tol)
+  call grid_set(top,layer=layers(top),sor=1.8_grid_p,tol=tol/100._grid_p)
+  call grid_set(top,layer=layers(top)-1,sor=1.8_grid_p,tol=tol/10._grid_p)
 
   write(*,*)' >> Created all children...'
 
@@ -84,12 +86,8 @@ program topbottom
   call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
   ll = (/ 0._dp,cell(2,2),0._dp/)
   call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
-  
-  call print_grid(top)
 
-  ! initialize the grid
-  call grid_bring_back(top)
-  call grid_setup(top)
+  call print_grid(top)
 
   ! write out the initial cube file
   !call mg_save(top,'initial',MG_SAVE_CUBE)
@@ -97,22 +95,23 @@ program topbottom
   c1 = clock()
 
   do N = 1 , layers(top)
-     call grid_set(top,layer=N,rp_method=2)
+     call grid_set(top,layer=N, &
+          restrict = INTERP_HALF, prolong = INTERP_HALF)
   end do
 
-  !call mg_gs_cds(top,CDS_BOTTOM_UP)
-  call mg_gs_cds(top,CDS_W_CYCLE)
+  call mg_gs_cds(top,CDS_BOTTOM_UP)
+  !call mg_gs_cds(top,CDS_W_CYCLE)
 
   time = timing(c1)
 
   print *,'Timing:', time
 
   c1 = clock()
-  call mg_save(top,'test',MG_SAVE_CUBE)
+  call mg_save(top,'test1',MG_SAVE_CUBE)
   time = timing(c1)
   print *,'Timing CUBE:', time
   c1 = clock()
-  call mg_save(top,'test',MG_SAVE_BINARY)
+  call mg_save(top,'test1',MG_SAVE_BINARY)
   time = timing(c1)
   print *,'Timing BINARY:', time
 

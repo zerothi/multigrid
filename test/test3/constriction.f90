@@ -85,6 +85,8 @@ program topbottom
   ! write out the initial cube file
   call mg_save(top,'initial',MG_SAVE_CUBE)
 
+  call grid_hold_back(top)
+
   c1 = clock()
 
   call mg_gs_cds(top)

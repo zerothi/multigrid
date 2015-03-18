@@ -24,7 +24,7 @@ dep:
 	sfmakedepend --depend=obj --modext=o \
 		*.f90 *.F90
 
-test1: constriction.o
+test1: four.o
 	$(FC) -o $@ $^ $(FFLAGS) $(LIBS) $(LIB_TEST_NAME) $(LIB_NAME)
 ifdef RUN_TEST
 	./$@

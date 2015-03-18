@@ -5,10 +5,7 @@
 include ../arch.make
 
 # The phony list
-TESTS=test1 test2 test3
-TESTS=test3
-TESTS=test4
-#TESTS=test1
+TESTS=test1 test2 test3 test4 test5
 .PHONY: default lib deb clean all $(TESTS)
 
 # We need to add the src-directory to the sources
@@ -43,6 +40,8 @@ test2:
 test3:
 	(cd $@ ; $(MAKE))
 test4:
+	(cd $@ ; $(MAKE))
+test5:
 	(cd $@ ; $(MAKE))
 
 clean:
