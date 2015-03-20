@@ -96,8 +96,7 @@ contains
 
     ! write out the "default" atom (no atoms)
     write(io,'(i5,4(tr1,f12.6))') 1,(/0._dp,0._dp,0._dp,0._dp/)
-    write(io,'(i5,4(tr1,f12.6))') 1, grid%cell(:,1)+ &
-         grid%cell(:,2) + grid%cell(:,3)
+    write(io,'(i5,4(tr1,f12.6))') 1, SUM(grid%cell(:,:),DIM=2), 0._dp
 
     ! create the format string
     write(fmt,'(a,i0,a)') '(',grid%n(1),'(e12.6,tr1))'

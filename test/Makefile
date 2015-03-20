@@ -36,7 +36,7 @@ lib:
 	$(MAKE) -C lib lib
 
 # Create list of all tests
-TESTS=test1 test2 test3 test4 test5
+TESTS=test1 test2 test3 test4 test5 test6
 .PHONY: $(TESTS)
 
 all: lib $(TESTS)
@@ -69,6 +69,12 @@ ifdef RUN_TEST
 endif
 
 test5: test5.o
+	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME) $(LIBS)
+ifdef RUN_TEST
+	./$@
+endif
+
+test6: test6.o
 	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME) $(LIBS)
 ifdef RUN_TEST
 	./$@

@@ -13,7 +13,7 @@ endif
 .PHONY: default lib deb clean
 
 # We need to add the src-directory to the sources
-FFLAGS += -I../../src
+INC += -I../../src
 
 default: lib
 

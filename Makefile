@@ -7,6 +7,8 @@ include arch.make
 # The phony list
 .PHONY: default dep lib src ncdf test clean
 
+default: lib
+
 ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
 ncdf:
 	$(MAKE) -C ncdf "ARCH_MAKE=$$(pwd)/arch.make"
@@ -16,7 +18,6 @@ ncdf:
 endif
 
 
-default: src
 
 # Make dependency list
 dep:
