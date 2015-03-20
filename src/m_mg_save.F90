@@ -185,7 +185,7 @@ contains
 
     call ncdf_put_var(ncdf,'offset',grid%offset)
     call ncdf_put_var(ncdf,'cell',grid%cell)
-    call ncdf_put_var(ncdf,'V',grid%V)
+    call ncdf_put_var(ncdf,'V',grid%V(1:grid%n(1),1:grid%n(2),1:grid%n(3)))
 
     call ncdf_close(ncdf)
     

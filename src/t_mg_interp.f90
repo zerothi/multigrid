@@ -69,16 +69,13 @@ contains
 
 !$OMP single
     do z = 1 , child%n(3)
-    pz = z * 2
-    if ( pz >= grid%n(3) ) cycle
+    pz = g2g(child%n(3),z,grid%n(3))
 !$OMP task firstprivate(z,pz), private(y,py)
     do y = 1 , child%n(2)
-    py = y * 2
-    if ( py >= grid%n(2) ) cycle
+    py = g2g(child%n(2),y,grid%n(2))
 !$OMP task firstprivate(y,py), private(vt)
     do x = 1 , child%n(1)
-       px = x * 2
-       if ( px >= grid%n(1) ) cycle
+       px = g2g(child%n(1),x,grid%n(1))
 
        ! point to the element
        vt => Vc(x,y,z)
@@ -121,7 +118,7 @@ contains
     ! we still need the border...
 
     ! re-instantiate the constant fields
-    call grid_setup(child)
+    call grid_setup(child , init = .false. )
 
   end subroutine grid_restriction_new
 
@@ -146,25 +143,25 @@ contains
     Vc => child%V
 
     ! Check that the grid is consistent with the algorithm
-    if ( any( (grid%n-1)/2 < child%n ) ) then
-       stop 'Grid sizes does not conform, res_new'
-    end if
+!    if ( any( (grid%n-1)/2 < child%n ) ) then
+!       stop 'Grid sizes does not conform, res_new'
+!    end if
 
 !$OMP parallel default(shared), private(vt)
 
     ! we employ full-weighting
 
 !$OMP single
-    do z = 2 , grid%n(3) - 1 , 2
-    cz = z / 2
+    do cz = 1 , child%n(3)
+    z = g2g(child%n(3),cz,grid%n(3))
 
 !$OMP task firstprivate(z,cz), private(y,cy)
-    do y = 2 , grid%n(2) - 1 , 2
-    cy = y / 2
+    do y = 2 , grid%n(2) , 2
+    cy = g2g(grid%n(2),y,child%n(2))
 
 !$OMP task firstprivate(y,cy), private(x,cx)
-    do x = 2 , grid%n(1) - 1 , 2
-       cx = x / 2
+    do x = 2 , grid%n(1) , 2
+       cx = g2g(grid%n(1),x,child%n(1))
 
        vt => Vc(cx,cy,cz)
 
@@ -213,7 +210,7 @@ contains
 !$OMP end parallel
 
     ! re-instantiate the constant fields
-    call grid_setup(child)
+    call grid_setup(child, init = .false. )
 
   end subroutine grid_restriction_full
 
@@ -237,25 +234,25 @@ contains
     Vc => child%V
 
     ! Check that the grid is consistent with the algorithm
-    if ( any( (grid%n-1)/2 < child%n ) ) then
-       stop 'Grid sizes does not conform, res_half'
-    end if
+!    if ( any( (grid%n-1)/2 < child%n ) ) then
+!       stop 'Grid sizes does not conform, res_half'
+!    end if
 
 !$OMP parallel default(shared)
 
     ! we employ full-weighting
 
 !$OMP single
-    do z = 2 , grid%n(3) - 1 , 2
-    cz = z / 2
+    do cz = 1 , child%n(3)
+    z = g2g(child%n(3),cz,grid%n(3))
 
 !$OMP task firstprivate(z,cz), private(y,cy)
-    do y = 2 , grid%n(2) - 1 , 2
-    cy = y / 2
+    do cy = 1 , child%n(2)
+    y = g2g(child%n(2),cy,grid%n(2))
 
 !$OMP task firstprivate(y,cy), private(x,cx,vt)
-    do x = 2 , grid%n(1) - 1 , 2
-       cx = x / 2
+    do cx = 1 , child%n(1)
+       x = g2g(child%n(1),cx,grid%n(1))
 
        vt => Vc(cx,cy,cz)
 
@@ -294,7 +291,7 @@ contains
 !$OMP end parallel
 
     ! re-instantiate the constant fields
-    call grid_setup(child)
+    call grid_setup(child, init = .false. )
 
   end subroutine grid_restriction_half
 
@@ -320,27 +317,24 @@ contains
     Vp => parent%V
 
     ! Check that the grid is consistent with the algorithm
-    if ( any( (parent%n-1)/2 < grid%n ) ) then
-       stop 'Grid sizes does not conform, pro full'
-    end if
+!    if ( any( (parent%n-1)/2 < grid%n ) ) then
+!       stop 'Grid sizes does not conform, pro full'
+!    end if
 
 !$OMP parallel default(shared)
 
     ! do middle loop
 !$OMP single
     do pz = 1 , parent%n(3)
-    z = max(2, pz / 2)
-    if ( z >= grid%n(3) ) cycle
+    z = g2g(parent%n(3),pz,grid%n(3))
 
 !$OMP task firstprivate(z,pz), private(y,py)
     do py = 1 , parent%n(2)
-    y = max(2,py / 2 - py / grid%n(2))
-    if ( y >= grid%n(2) ) cycle
+    y = g2g(parent%n(2),py,grid%n(2))
 
 !$OMP task firstprivate(y,py), private(x,px,vt)
     do px = 1 , parent%n(1)
-       x = max(2,px / 2 - px / grid%n(1))
-       if ( x >= grid%n(1) ) cycle
+       x = g2g(parent%n(1),px,grid%n(1))
 
        ! point to the parent point
        vt => Vp(px,py,pz)
@@ -391,7 +385,7 @@ contains
 
 !$OMP end parallel
 
-    call grid_setup(parent)
+    call grid_setup(parent, init = .false. )
 
   end subroutine grid_prolongation_full
 
@@ -415,27 +409,24 @@ contains
     Vp => parent%V
 
     ! Check that the grid is consistent with the algorithm
-    if ( any( (parent%n-1)/2 < grid%n ) ) then
-       stop 'Grid sizes does not conform, pro half'
-    end if
+!    if ( any( (parent%n-1)/2 < grid%n ) ) then
+!       stop 'Grid sizes does not conform, pro half'
+!    end if
 
 !$OMP parallel default(shared)
 
     ! do middle loop
 !$OMP single
     do pz = 1 , parent%n(3)
-    z = max(2, pz / 2)
-    if ( z >= grid%n(3) ) cycle
+    z = g2g(parent%n(3),pz,grid%n(3))
 
 !$OMP task firstprivate(z,pz), private(y,py)
     do py = 1 , parent%n(2)
-    y = max(2,py / 2 - py / grid%n(2))
-    if ( y >= grid%n(2) ) cycle
+    y = g2g(parent%n(2),py,grid%n(2))
 
 !$OMP task firstprivate(y,py), private(x,px,vt)
     do px = 1 , parent%n(1)
-       x = max(2,px / 2 - px / grid%n(1))
-       if ( x >= grid%n(1) ) cycle
+       x = g2g(parent%n(1),px,grid%n(1))
 
        ! point to the parent point
        vt => Vp(px,py,pz)
@@ -476,7 +467,7 @@ contains
 
 !$OMP end parallel
 
-    call grid_setup(parent)
+    call grid_setup(parent, init = .false. )
 
   end subroutine grid_prolongation_half
 
@@ -989,7 +980,7 @@ contains
     ! we still need the border
 
     ! re-instantiate the constant fields
-    call grid_setup(parent)
+    call grid_setup(parent, init = .false. )
 
   contains
 
@@ -1002,5 +993,12 @@ contains
     end subroutine print_t
 
   end subroutine grid_prolongation_old
+
+  ! Conversion of index from parent to child index
+  pure function g2g(n1,i1,n2) result(i2)
+    integer, intent(in) :: n1, i1, n2
+    integer :: i2
+    i2 = max(1,min(i1 * n2 / n1,n2))
+  end function g2g
 
 end module t_mg_interp

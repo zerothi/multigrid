@@ -73,7 +73,7 @@ contains
 
           call grid_bring_back(grid)
 
-          call grid_setup(grid)
+          call grid_setup(grid , init = .false. )
 
        end if
 
@@ -188,6 +188,7 @@ contains
     tol = grid_tolerance(grid) + 1._grid_p
     
     old_sum = grid_sum(grid)
+    print'(a,f10.7)','Initial sum: ',old_sum * nr
 
     old_itt = grid%itt
 
@@ -301,7 +302,7 @@ contains
     call gs(grid)
     !< wait communicate >       
 
-    call gs_bound(grid)
+!    call gs_bound(grid)
 
     ! Take the square root of the abs error
     grid%err = sqrt(grid%err)
@@ -322,9 +323,9 @@ contains
 
 !$OMP parallel do default(shared), collapse(3), &
 !$OMP&private(x,y,z,vv), firstprivate(sor), reduction(max:err)
-    do z = 2 , grid%n(3) - 1
-       do y = 2 , grid%n(2) - 1
-          do x = 2 , grid%n(1) - 1
+    do z = 1 , grid%n(3)
+       do y = 1 , grid%n(2)
+          do x = 1 , grid%n(1)
              ! calculate the current contribution
              vv = sor(1) * V(x,y,z) + sor(2) * val(grid,V,x,y,z)
              err = max(err,(vv-V(x,y,z))**2)
@@ -689,7 +690,7 @@ contains
 
   subroutine gs_corner(grid,V,sor,x,y,z,dx,dy,dz)
     type(mg_grid), intent(inout) :: grid
-    real(grid_p), intent(inout) :: V(:,:,:)
+    real(grid_p), intent(inout) :: V(0:,0:,0:)
     real(grid_p), intent(in) :: sor(2)
     integer, intent(in) :: x,y,z,dx,dy,dz
     real(grid_p) :: vcur, val_r(3)
@@ -711,7 +712,8 @@ contains
 
   pure function val(grid,V,x,y,z)
     type(mg_grid), intent(in) :: grid
-    real(grid_p), intent(in) :: V(:,:,:)
+    ! We need to conform to the grid size padding, start from 0
+    real(grid_p), intent(in) :: V(0:,0:,0:)
     integer, intent(in) :: x,y,z
     real(grid_p) :: val, val_r(6)
 
@@ -737,7 +739,7 @@ contains
   pure function val_xb(grid,V,x,y,z,dx) result(val)
     ! calculates the contribution on the lower/upper x-bound
     type(mg_grid), intent(in) :: grid
-    real(grid_p), intent(in) :: V(:,:,:)
+    real(grid_p), intent(in) :: V(0:,0:,0:)
     integer, intent(in) :: x,y,z,dx
     real(grid_p) :: val, val_r(5)
 
@@ -762,7 +764,7 @@ contains
   pure function val_yb(grid,V,x,y,z,dy) result(val)
     type(mg_grid), intent(in) :: grid
     ! calculates the contribution on the lower/upper x-bound
-    real(grid_p), intent(in) :: V(:,:,:)
+    real(grid_p), intent(in) :: V(0:,0:,0:)
     integer, intent(in) :: x,y,z,dy
     real(grid_p) :: val, val_r(5)
 
@@ -786,7 +788,7 @@ contains
 
   pure function val_zb(grid,V,x,y,z,dz) result(val)
     type(mg_grid), intent(in) :: grid
-    real(grid_p), intent(in) :: V(:,:,:)
+    real(grid_p), intent(in) :: V(0:,0:,0:)
     integer, intent(in) :: x,y,z,dz
     real(grid_p) :: val, val_r(5)
 

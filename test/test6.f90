@@ -30,9 +30,10 @@ program test
   cell(:,3) = (/0._dp,0._dp,31.75_dp/)
 
   ! we create it to be 100x100x100
-  nn = 200
+  nn = 360
+  nn(2) = 240
   ! create grid
-  call init_grid(top,nn,cell,10,tol=tol)
+  call init_grid(top,nn,cell,4,tol=tol)
 
   write(*,*)'>> Created initial grid...'
 
@@ -50,13 +51,13 @@ program test
      call grid_set(top,layer=N,sor=sor,tol=tol)
      !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
-  call grid_set(top,layer=1,tol=tol)
+  call grid_set(top,layer=layers(top),tol=tol/100._grid_p)
 
   write(*,*)' >> Created all children...'
 
   write(*,*)'  >> Add all the boxes...'
   ! Four boxes, three with same potential, 1 with different.
-  call grid_add_dirichlet(top)
+  call grid_BC(top,MG_BC_DIRICHLET)
 
   ll         = (/  0.00000E+00,  0.20100E+01,  0.12340E+02/)
   bcell(:,1) = (/  0.63500E+01,  0.00000E+00,  0.00000E+00/)
@@ -65,7 +66,7 @@ program test
   call grid_add_box(top, ll, bcell, .5_grid_p, 1._grid_p, .true.)
 
   ll         = (/  0.25400E+02,  0.20100E+01,  0.12340E+02/)
-  call grid_add_box(top, ll, bcell, .5_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, -.5_grid_p, 1._grid_p, .true.)
 
   ll         = (/  0.12340E+02,  0.20100E+01,  0.00000E+00/)
   bcell(:,1) = (/  0.70000E+01,  0.00000E+00,  0.00000E+00/)
@@ -80,16 +81,24 @@ program test
 
   ! initialize the grid
   call grid_bring_back(top)
-  call grid_setup(top)
+  call grid_setup(top,init=.true.)
 
   ! write out the initial cube file
-  call mg_save(top,'test6_initial',MG_SAVE_CUBE)
+!  call mg_save(top,'test6_initial',MG_SAVE_CUBE)
 
   call grid_hold_back(top)
 
   c1 = clock()
 
   call mg_gs_cds(top)
+
+  time = timing(c1)
+
+  print *,'Timing:', time
+
+  c1 = clock()
+
+  call mg_gs_cds(top,CDS_W_CYCLE)
 
   time = timing(c1)
 

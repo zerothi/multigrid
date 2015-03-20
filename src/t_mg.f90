@@ -1,5 +1,7 @@
 module t_mg
 
+  use t_BC
+
   implicit none
 
   integer, parameter :: dp = selected_real_kind(p=15)
@@ -42,7 +44,10 @@ module t_mg
 
      ! The max change in the grid
      real(grid_p) :: err
-     
+
+     ! The BC of the cell
+     type(tBC) :: BC(2,3)
+
      ! the prolongation method
      integer :: PRO_method = 1
      ! the restriction method
@@ -195,8 +200,8 @@ contains
       integer :: i
 
       do i = 1 , 3
-         n(i) = (grid%n(i) + mod(grid%n(i),2)) / 2 - 1
-         if ( n(i) < 7 ) then
+         n(i) = grid%n(i) / 2
+         if ( n(i) < 20 ) then
             n(:) = 0
             return
          end if
@@ -233,72 +238,42 @@ contains
 
   end subroutine grid_set
 
-  subroutine grid_add_dirichlet(grid, val, rho, constant, plane)
+  recursive subroutine grid_BC(grid, BC, plane)
     type(mg_grid), intent(inout) :: grid
-    real(grid_p), intent(in), optional :: val, rho
-    logical, intent(in), optional :: constant
     ! Define which plane we want to add the dirichlet boundary
     ! conditions on.
+    integer, intent(in) :: BC
     integer, intent(in), optional :: plane
-  
-    ! Local variables
-    real(grid_p) :: lval, lrho
-    logical :: lconstant
-    real(dp) :: ll(3), cell(3,3)
+
     integer :: lplane
 
-
-    lval = 0._grid_p
-    if ( present(val) ) lval = val
-    lrho = 1._grid_p
-    if ( present(rho) ) lrho = rho
-    lconstant = .true.
-    if ( present(constant) ) lconstant = constant
-    lplane = IOR(MG_CELL_A0,MG_CELL_A1)
-    lplane = IOR(lplane,MG_CELL_B0,MG_CELL_B1)
-    lplane = IOR(lplane,MG_CELL_C0,MG_CELL_C1)
+    lplane = IOR(MG_BC_A0,MG_BC_A1)
+    lplane = IOR(lplane,MG_BC_B0)
+    lplane = IOR(lplane,MG_BC_B1)
+    lplane = IOR(lplane,MG_BC_C0)
+    lplane = IOR(lplane,MG_BC_C1)
     if ( present(plane) ) lplane = plane
 
     ! Create all plane-boxes
     ! Start by creating the boxes starting from origo
-    ll = 0._grid_p
-    cell = grid%cell
-    cell(:,1) = grid%dL(:,1)
-    if ( iand(MG_CELL_A0,lplane) == MG_CELL_A0 .and. grid%n(1) > 1 ) &
-         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
-    cell = grid%cell
-    cell(:,2) = grid%dL(:,2)
-    if ( iand(MG_CELL_B0,lplane) == MG_CELL_B0 .and. grid%n(2) > 1 ) &
-         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
-    cell = grid%cell
-    cell(:,3) = grid%dL(:,3)
-    if ( iand(MG_CELL_C0,lplane) == MG_CELL_C0 .and. grid%n(3) > 1 ) &
-         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
-
-    ! Now create the boxes starting from the opposite
-    ! corner of the cell
-    ll = sum(grid%cell,DIM=2)
-    cell = -grid%cell
-    cell(:,1) = -grid%dL(:,1)
-    if ( iand(MG_CELL_A1,lplane) == MG_CELL_A1 .and. grid%n(1) > 1 ) &
-         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
-    ll = sum(grid%cell,DIM=2)
-    cell = -grid%cell
-    cell(:,2) = -grid%dL(:,2)
-    if ( iand(MG_CELL_B1,lplane) == MG_CELL_B1 .and. grid%n(2) > 1 ) &
-         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
-    ll = sum(grid%cell,DIM=2)
-    cell = -grid%cell
-    cell(:,3) = -grid%dL(:,3)
-    if ( iand(MG_CELL_C1,lplane) == MG_CELL_C1 .and. grid%n(3) > 1 ) &
-         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
+    if ( iand(MG_CELL_A0,lplane) == MG_CELL_A0 ) &
+         grid%BC(1,1)%method = BC
+    if ( iand(MG_CELL_A1,lplane) == MG_CELL_A1 ) &
+         grid%BC(2,1)%method = BC
+    if ( iand(MG_CELL_B0,lplane) == MG_CELL_B0 ) &
+         grid%BC(1,2)%method = BC
+    if ( iand(MG_CELL_B1,lplane) == MG_CELL_B1 ) &
+         grid%BC(2,2)%method = BC
+    if ( iand(MG_CELL_C0,lplane) == MG_CELL_C0 ) &
+         grid%BC(1,3)%method = BC
+    if ( iand(MG_CELL_C1,lplane) == MG_CELL_C1 ) &
+         grid%BC(2,3)%method = BC
 
     if ( associated(grid%child) ) then
-       call grid_add_dirichlet(grid%child,val=val,rho=rho, &
-            constant=constant,plane=plane)
+       call grid_BC(grid%child,BC,plane=plane)
     end if
     
-  end subroutine grid_add_dirichlet
+  end subroutine grid_BC
 
   recursive subroutine grid_add_box(grid, llc, box_cell, val, rho, constant, recurse)
     type(mg_grid), intent(inout) :: grid
@@ -472,6 +447,19 @@ contains
     end do
 !$OMP end parallel do
 
+    if ( grid%BC(1,1)%method == MG_BC_DIRICHLET ) &
+         V(0,:,:) = 0._grid_p
+    if ( grid%BC(2,1)%method == MG_BC_DIRICHLET ) &
+         V(grid%n(1)+1,:,:) = 0._grid_p
+    if ( grid%BC(1,2)%method == MG_BC_DIRICHLET ) &
+         V(:,0,:) = 0._grid_p
+    if ( grid%BC(2,2)%method == MG_BC_DIRICHLET ) &
+         V(:,grid%n(2)+1,:) = 0._grid_p
+    if ( grid%BC(1,3)%method == MG_BC_DIRICHLET ) &
+         V(:,:,0) = 0._grid_p
+    if ( grid%BC(2,3)%method == MG_BC_DIRICHLET ) &
+         V(:,:,grid%n(3)+1) = 0._grid_p
+
   end subroutine grid_setup
 
   subroutine grid_hold_back(grid)
@@ -492,7 +480,7 @@ contains
     call grid_hold_back(grid)
 
     ! Re-allocate
-    allocate(grid%V(grid%n(1),grid%n(2),grid%n(3)))
+    allocate(grid%V(0:grid%n(1)+1,0:grid%n(2)+1,0:grid%n(3)+1))
     allocate(grid%g(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
     allocate(grid%g_s(grid%n(1)*2+grid%n(2)*2+grid%n(3)*2))
 

@@ -6,11 +6,11 @@ RANLIB=ranlib
 FFLAGS=-O3 -m64 -fPIC -fno-second-underscore -ftree-vectorize -fexpensive-optimizations \
 	-finline-functions-called-once -funroll-loops -fvariable-expansion-in-unroller \
 	-ftree-loop-optimize -frename-registers -fprefetch-loop-arrays -finline-small-functions \
-	-fipa-pure-const -foptimize-sibling-calls -fipa-cp
+	-fipa-pure-const -foptimize-sibling-calls -fipa-cp -floop-block
 
 FFLAGS += -fopenmp
 
-#FFLAGS = -g -O0 -Warray-bounds
+#FFLAGS = -g -O1 -Wall -fbacktrace
 
 #FFLAGS += -Wunused
 
