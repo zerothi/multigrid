@@ -2,7 +2,7 @@
 .SUFFIXES: .f90 .F90 .o .a
 # We don't accept .f, nor .F files
 
-include ../../arch.make
+include ../arch.make
 
 # The phony list
 .PHONY: default deb clean
@@ -25,7 +25,7 @@ dep:
 		*.f90 *.F90
 
 test1: three.o
-	$(FC) -o $@ $^ $(FFLAGS) $(LIBS) $(LIB_TEST_NAME) $(LIB_NAME)
+	$(FC) -o $@ $^ $(FFLAGS) $(LIB_TEST_NAME) $(LIB_NAME) $(LIBS)
 ifdef RUN_TEST
 	./$@
 endif

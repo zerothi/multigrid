@@ -4,6 +4,12 @@
 
 include ../arch.make
 
+ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
+# Only the save object has references to the netcdf library
+LIBS += ../ncdf/src/libncdf.a ../ncdf/fvar/libvardict.a
+INC += -I../ncdf/src -I../ncdf/fvar
+endif
+
 # The phony list
 TESTS=test1 test2 test3 test4 test5
 .PHONY: default lib deb clean all $(TESTS)
@@ -47,7 +53,7 @@ test5:
 clean:
 	rm -f $(OBJS) *.mod *.MOD
 	for d in */ ; do \
-		(cd $$d ; $(MAKE) clean) ; \
+		$(MAKE) -C $$d clean ; \
 	done
 
 # DO NOT DELETE THIS LINE - used by make depend

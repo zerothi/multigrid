@@ -21,6 +21,10 @@ OBJS = t_mg.o t_mg_interp.o m_mg_save.o
 # Gauss-Seidel objects
 OBJS += m_gs_CDS.o
 
+ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
+# Only the save object has references to the netcdf library
+m_mg_save.o: INC+=-I../ncdf/src -I../ncdf/fvar
+endif
 
 # library
 $(LIB_NAME): $(OBJS)

@@ -2,23 +2,35 @@
 .SUFFIXES: .f90 .F90 .o .a
 # We don't accept .f, nor .F files
 
+include arch.make
+
 # The phony list
-.PHONY: default dep lib src test clean
+.PHONY: default dep lib src ncdf test clean
+
+ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
+ncdf:
+	$(MAKE) -C ncdf "ARCH_MAKE=$$(pwd)/../arch.make"
+else
+ncdf:
+	@echo "Compiling without NetCDF support"
+endif
+
 
 default: src
 
-# Make dependecy list
+# Make dependency list
 dep:
-	@if [ -d src ] ;  then (cd src ; $(MAKE) dep) ; fi
-	@if [ -d test ] ; then (cd test ; $(MAKE) dep) ; fi
+	$(MAKE) -C src dep
+	$(MAKE) -C test dep
 
 lib: src
-src: 
-	@if [ -d src ] ;  then (cd src ; $(MAKE)) ; fi
+src: ncdf
+	$(MAKE) -C src
 
 test: lib
-	@if [ -d test ] ;  then (cd test ; $(MAKE)) ; fi
+	$(MAKE) -C test
 
 clean:
-	@if [ -d src ] ;  then (cd src ; $(MAKE) clean) ; fi
-	@if [ -d test ] ; then (cd test ; $(MAKE) clean) ; fi
+	$(MAKE) -C src clean
+	$(MAKE) -C test clean
+	-$(MAKE) -C ncdf clean "ARCH_MAKE=$$(pwd)/arch.make" clean

@@ -10,8 +10,6 @@ program topbottom
 
   implicit none
 
-  integer :: method = MG_METHOD_GS_TEMPORAL_CDS
-
   ! the top multi-grid type
   type(mg_grid), target :: top
 
@@ -67,7 +65,8 @@ program topbottom
   call grid_bring_back(top)
   call grid_setup(top, init = .true. ) ! only for saving initial
 
-  ! write out the initial cube file
+  ! write out the initial cube file (the initial one we only save
+  ! in cube)
   call mg_save(top,'initial',MG_SAVE_CUBE)
 
   call grid_hold_back(top)
@@ -81,7 +80,7 @@ program topbottom
   print *,'Timing - BU:', time
 
   ! write out the initial cube file
-  call mg_save(top,'topbottom_bu',MG_SAVE_CUBE)
+  call grid_save_all(top,'topbottom_BU')
 
   call grid_hold_back(top)
 
@@ -94,7 +93,7 @@ program topbottom
   print *,'Timing - W: ', time
 
   ! write out the initial cube file
-  call mg_save(top,'topbottom_w',MG_SAVE_CUBE)
+  call grid_save_all(top,'topbottom_W')
   
   call delete_grid(top)
   

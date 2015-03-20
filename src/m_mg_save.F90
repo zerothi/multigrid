@@ -47,7 +47,7 @@ contains
        call mg_cube(grid,filename)
 #ifdef CDF
     case ( MG_SAVE_CDF )
-       
+       call mg_cdf(grid,filename)
 #endif
     case ( MG_SAVE_BINARY )
        call mg_binary(grid,filename)
@@ -132,69 +132,59 @@ contains
 
   subroutine mg_cdf(grid,name)
 
+    use variable
+    use dictionary
+
     use nf_ncdf
 
     type(mg_grid), intent(in) :: grid
     character(len=*), intent(in) :: name
 
     type(hNCDF) :: ncdf
+    type(dict) :: dic
 
     real(grid_p), pointer :: V(:,:,:)
     character(len=200) :: fname
-
-    integer :: dx,dy,dz, d3, oid, cid, vid
-    integer :: p
 
     V => grid%V
 
     ! NetCDF file name
     fname = trim(name)//'.nc'
 
-    ! Create the netCDF file. 
-    mode_flag = nf90_classic_model
-    call ne(nf90_create(fname, mode_flag, ncid))
+    call ncdf_create(ncdf, fname, &
+         mode=ior(NF90_NETCDF4,NF90_CLASSIC_MODEL), &
+         overwrite = .true. )
 
-    ! Define the dimensions.
-    call ne(nf90_def_dim(ncid, "x", grid%n(1), dx))
-    call ne(nf90_def_dim(ncid, "y", grid%n(2), dy))
-    call ne(nf90_def_dim(ncid, "z", grid%n(3), dz))
-    call ne(nf90_def_dim(ncid, "xyz", 3, d3))
+    call ncdf_def_dim(ncdf,'x',grid%n(1))
+    call ncdf_def_dim(ncdf,'y',grid%n(2))
+    call ncdf_def_dim(ncdf,'z',grid%n(3))
+    call ncdf_def_dim(ncdf,'xyz',3)
 
     ! define the offset, cell (we should probably also add the boxes)
-    call ne(nf90_def_var(ncid, "offset", NF90_DOUBLE, d3, oid))    
-    call ne(nf90_def_var(ncid, "cell", NF90_DOUBLE, (/d3,d3/), cid))    
+    dic = ('unit'.kv.'Bohr') // ('info'.kv.'Offset of the cell')
+    call ncdf_def_var(ncdf,'offset',NF90_DOUBLE,(/'xyz'/), atts=dic)
+    dic = dic // ('info'.kv.'Cell dimensions')
+
+    call ncdf_def_var(ncdf,'cell',NF90_DOUBLE,(/'xyz','xyz'/), atts=dic)
 
     ! Define the variable. 
-    p = selected_real_kind(p=7)
-    if ( p == grid_p ) then
-       call ne(nf90_def_var(ncid, "V", NF90_FLOAT,  (/dx,dy,dz/), vid))
+    dic = dic//('unit'.kv.'Ry') // ('info'.kv.'Potential') // &
+         ('ATT_DELETE'.kv.1)
+
+    if ( dp == grid_p ) then
+       call ncdf_def_var(ncdf,'V',NF90_DOUBLE,(/'x','y','z'/), atts=dic)
     else
-       call ne(nf90_def_var(ncid, "V", NF90_DOUBLE, (/dx,dy,dz/), vid))
+       call ncdf_def_var(ncdf,'V',NF90_FLOAT,(/'x','y','z'/), atts=dic)
     end if
 
-    call ne(nf90_put_att(ncid, NF90_GLOBAL, "title", &
-         "Created by Nick Papior Andersen MG"))
-    
-    call ne(nf90_enddef(ncid))
-    
-    call ne(nf90_put_var(ncid,Oid,grid%offset))
-    call ne(nf90_put_var(ncid,Cid,grid%cell))
-    call ne(nf90_put_var(ncid,Vid,grid%V))
+    dic = ('title'.kv.'Created by Nick Papior Andersen MG')
+    call ncdf_put_gatt(ncdf,atts = dic)
 
-    call ne(nf90_close(ncid))
+    call ncdf_put_var(ncdf,'offset',grid%offset)
+    call ncdf_put_var(ncdf,'cell',grid%cell)
+    call ncdf_put_var(ncdf,'V',grid%V)
 
-  contains
-
-    subroutine ne(error)
-      integer, intent(in) :: error
-
-      if (error /= nf90_noerr) then
-         print *, 'MG NetCDF error: ', &
-              trim(nf90_strerror(error))
-         stop 1
-      end if
-      
-    end subroutine ne
+    call ncdf_close(ncdf)
     
   end subroutine mg_cdf
 

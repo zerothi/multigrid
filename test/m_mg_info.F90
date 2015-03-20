@@ -7,6 +7,21 @@ module m_mg_info
 
 contains
 
+  subroutine grid_save_all(grid,fname)
+    use m_mg_save
+    type(mg_grid), intent(in) :: grid
+    character(len=*), intent(in) :: fname
+
+    ! Save all available formats
+    call mg_save(grid,fname,MG_SAVE_CUBE)
+#ifdef CDF
+    call mg_save(grid,fname,MG_SAVE_CDF)
+#endif
+    call mg_save(grid,fname,MG_SAVE_BINARY)
+    call mg_save(grid,fname,MG_SAVE_ASCII)
+
+  end subroutine grid_save_all
+
   subroutine print_grid(top)
     type(mg_grid), intent(in), target :: top
 

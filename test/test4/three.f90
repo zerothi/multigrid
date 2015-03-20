@@ -11,8 +11,6 @@ program topbottom
 
   implicit none
 
-  integer :: method = MG_METHOD_GS_TEMPORAL_CDS
-
   ! the top multi-grid type
   type(mg_grid), target :: top
 
@@ -106,14 +104,7 @@ program topbottom
 
   print *,'Timing:', time
 
-  c1 = clock()
-  call mg_save(top,'test1',MG_SAVE_CUBE)
-  time = timing(c1)
-  print *,'Timing CUBE:', time
-  c1 = clock()
-  call mg_save(top,'test1',MG_SAVE_BINARY)
-  time = timing(c1)
-  print *,'Timing BINARY:', time
+  call grid_save_all(top,'test1')
 
   call delete_grid(top)
   

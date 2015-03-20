@@ -10,8 +10,6 @@ program topbottom_single
 
   implicit none
 
-  integer :: method = MG_METHOD_GS_TEMPORAL_CDS
-
   ! the top multi-grid type
   type(mg_grid), target :: top
 
@@ -60,7 +58,7 @@ program topbottom_single
 
   print *,'Timing:', time
 
-  call mg_save(top,'test_single',MG_SAVE_CUBE)
+  call grid_save_all(top,'test_single')
   
   call delete_grid(top)
   

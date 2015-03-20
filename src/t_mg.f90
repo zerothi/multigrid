@@ -5,7 +5,7 @@ module t_mg
   integer, parameter :: dp = selected_real_kind(p=15)
   integer, parameter :: grid_p = selected_real_kind(p=6)
 
-  ! a module to sustain a "simple" multi-grid solver using the 
+  ! a module to sustain a "simple" multi-grid solver
 
   type :: mg_grid
      ! the grid information
