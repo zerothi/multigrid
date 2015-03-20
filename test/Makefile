@@ -24,11 +24,11 @@ dep:
 	sfmakedepend --depend=obj --modext=o \
 		*.f90 *.F90
 	for d in */ ; do \
-		(cd $$d ; $(MAKE) dep) ; \
+		$(MAKE) -C $$d dep ; \
 	done
 
 # Grid objects
-OBJS = m_cube.o m_mg_info.o m_time.o
+OBJS = m_mg_info.o m_time.o
 
 LIB_TEST_NAME?=libmg_test.a
 lib: $(LIB_TEST_NAME)
