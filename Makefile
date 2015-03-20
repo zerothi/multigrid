@@ -9,7 +9,7 @@ include arch.make
 
 ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
 ncdf:
-	$(MAKE) -C ncdf "ARCH_MAKE=$$(pwd)/../arch.make"
+	$(MAKE) -C ncdf "ARCH_MAKE=$$(pwd)/arch.make"
 else
 ncdf:
 	@echo "Compiling without NetCDF support"

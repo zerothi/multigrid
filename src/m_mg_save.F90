@@ -84,7 +84,7 @@ contains
     write(io,'(a)') 'Line not read'
 
     ! write out the offset of the grid
-    write(io,'(i0,3(tr1,e10.5))') 1,grid%offset
+    write(io,'(i0,3(tr1,e10.5))') 2,grid%offset
     do i = 1 , 3
        if ( grid%n(i) > 1 ) then
           write(io,'(i5,3(tr1,e12.6))') grid%n(i),grid%cell(:,i)/grid%n(i)
@@ -96,6 +96,8 @@ contains
 
     ! write out the "default" atom (no atoms)
     write(io,'(i5,4(tr1,f12.6))') 1,(/0._dp,0._dp,0._dp,0._dp/)
+    write(io,'(i5,4(tr1,f12.6))') 1, grid%cell(:,1)+ &
+         grid%cell(:,2) + grid%cell(:,3)
 
     ! create the format string
     write(fmt,'(a,i0,a)') '(',grid%n(1),'(e12.6,tr1))'
