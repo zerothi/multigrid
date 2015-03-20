@@ -1,4 +1,4 @@
-program topbottom
+program test
 
   use t_mg
   use t_mg_interp, only : INTERP_HALF, INTERP_FULL
@@ -104,8 +104,8 @@ program topbottom
 
   print *,'Timing:', time
 
-  call grid_save_all(top,'test1')
+  call grid_save_all(top,'test4')
 
   call delete_grid(top)
   
-end program topbottom
+end program test

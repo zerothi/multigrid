@@ -1,4 +1,4 @@
-program prores_check
+program test
 
   use t_mg
   use t_mg_interp
@@ -77,4 +77,4 @@ program prores_check
 
   end do
   
-end program prores_check
+end program test

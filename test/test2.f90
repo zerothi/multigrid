@@ -1,4 +1,4 @@
-program topbottom
+program test
 
   use t_mg
   use m_gs_CDS
@@ -80,7 +80,7 @@ program topbottom
   print *,'Timing - BU:', time
 
   ! write out the initial cube file
-  call grid_save_all(top,'topbottom_BU')
+  call grid_save_all(top,'test2_BU')
 
   call grid_hold_back(top)
 
@@ -93,8 +93,8 @@ program topbottom
   print *,'Timing - W: ', time
 
   ! write out the initial cube file
-  call grid_save_all(top,'topbottom_W')
+  call grid_save_all(top,'test2_W')
   
   call delete_grid(top)
   
-end program topbottom
+end program test

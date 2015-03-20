@@ -1,4 +1,4 @@
-program topbottom
+program test
 
   use t_mg
   use m_gs_CDS
@@ -25,14 +25,14 @@ program topbottom
   sor = 1.8_grid_p
 
   ! initialize the initial grid
-  cell(:,1) = (/30._dp,0._dp,0._dp/)
-  cell(:,2) = (/0._dp,30._dp,0._dp/)
+  cell(:,1) = (/12._dp,0._dp,0._dp/)
+  cell(:,2) = (/0._dp,12._dp,0._dp/)
   cell(:,3) = (/0._dp,0._dp,30._dp/)
 
   ! we create it to be 100x100x100
   nn = 200
   ! create grid
-  call init_grid(top,nn,cell,5,tol=tol)
+  call init_grid(top,nn,cell,3,tol=tol)
 
   write(*,*)'>> Created initial grid...'
 
@@ -56,7 +56,7 @@ program topbottom
 
   write(*,*)'  >> Add all the boxes...'
   ! The "electrodes"
-  bcell(:,:) = cell(:,:) / 4._dp
+  bcell(:,:) = cell(:,:) / 3._dp
   bcell(3,3) = cell(3,3) / 10._dp
   ll = (/ &
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
@@ -65,38 +65,15 @@ program topbottom
   call grid_add_box(top, ll, bcell, 1._grid_p, 1._grid_p, .true.)
   ll(3) = cell(3,3) - bcell(3,3)
   call grid_add_box(top, ll, bcell, -1._grid_p, 1._grid_p, .true.)
-
-  ! add the long constriction
-  bcell(:,1:2) = bcell(:,1:2) / 2._dp
-  ! length of box
-  bcell(3,3)   = cell(3,3) - bcell(3,3) * 2 
+  ! add the constriction
+  bcell(:,1:2) = bcell(:,1:2) / 3._dp
+  bcell(3,3)   = cell(3,3) - bcell(3,3) * 2._dp
   ll = (/ &
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
-       cell(2,2) / 5._dp - bcell(2,2) / 2._dp , & ! place it in the bottom of y
+       cell(2,2) / 2._dp - bcell(2,2) / 2._dp , &
        cell(3,3) / 10._dp /)
   call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
-
-
-  ! add connecting constriction
-  ! length of box
-  bcell(2,2) = cell(2,2) / 8._dp * 3._dp
-  bcell(3,3) = cell(3,3) / 10._dp
-  ll = (/ &
-       cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
-       cell(2,2) / 5._dp + bcell(2,2) / 2._dp , &
-       cell(3,3) / 10._dp /)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
-
-  ! add connecting constriction
-  ! length of box
-  bcell(2,2) = cell(2,2) / 8._dp * 3._dp
-  bcell(3,3) = cell(3,3) / 10._dp
-  ll = (/ &
-       cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
-       cell(2,2) / 5._dp + bcell(2,2) / 2._dp , &
-       cell(3,3) - cell(3,3) / 5._dp /)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
-
+  
   call print_grid(top)
 
   ! initialize the grid
@@ -104,7 +81,7 @@ program topbottom
   call grid_setup(top)
 
   ! write out the initial cube file
-  call mg_save(top,'initial',MG_SAVE_CUBE)
+  call mg_save(top,'test3_initial',MG_SAVE_CUBE)
 
   call grid_hold_back(top)
 
@@ -116,8 +93,8 @@ program topbottom
 
   print *,'Timing:', time
 
-  call grid_save_all(top,'test')
-
+  call grid_save_all(top,'test3')
+  
   call delete_grid(top)
   
-end program topbottom
+end program test
