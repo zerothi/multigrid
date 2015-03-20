@@ -21,7 +21,7 @@ program test
   call init_timing()
 
   ! tolerance for the convergence
-  tol = 1.e-3_grid_p
+  tol = 1.e-4_grid_p
   sor = 1.8_grid_p
 
   ! initialize the initial grid
@@ -32,7 +32,7 @@ program test
   ! we create it to be 100x100x100
   nn = 200
   ! create grid
-  call init_grid(top,nn,cell,4,tol=tol)
+  call init_grid(top,nn,cell,10,tol=tol)
 
   write(*,*)'>> Created initial grid...'
 
@@ -56,6 +56,7 @@ program test
 
   write(*,*)'  >> Add all the boxes...'
   ! Four boxes, three with same potential, 1 with different.
+  call grid_add_dirichlet(top)
 
   ll         = (/  0.00000E+00,  0.20100E+01,  0.12340E+02/)
   bcell(:,1) = (/  0.63500E+01,  0.00000E+00,  0.00000E+00/)
@@ -64,7 +65,7 @@ program test
   call grid_add_box(top, ll, bcell, .5_grid_p, 1._grid_p, .true.)
 
   ll         = (/  0.25400E+02,  0.20100E+01,  0.12340E+02/)
-  call grid_add_box(top, ll, bcell, -.5_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, .5_grid_p, 1._grid_p, .true.)
 
   ll         = (/  0.12340E+02,  0.20100E+01,  0.00000E+00/)
   bcell(:,1) = (/  0.70000E+01,  0.00000E+00,  0.00000E+00/)

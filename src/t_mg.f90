@@ -6,6 +6,12 @@ module t_mg
   integer, parameter :: grid_p = selected_real_kind(p=6)
 
   ! a module to sustain a "simple" multi-grid solver
+  integer, parameter :: MG_CELL_A0 = 1
+  integer, parameter :: MG_CELL_A1 = 2
+  integer, parameter :: MG_CELL_B0 = 4
+  integer, parameter :: MG_CELL_B1 = 8
+  integer, parameter :: MG_CELL_C0 = 16
+  integer, parameter :: MG_CELL_C1 = 32
 
   type :: mg_grid
      ! the grid information
@@ -227,11 +233,79 @@ contains
 
   end subroutine grid_set
 
-  recursive subroutine grid_add_box(grid, llc, box_cell, val, rho, constant)
+  subroutine grid_add_dirichlet(grid, val, rho, constant, plane)
+    type(mg_grid), intent(inout) :: grid
+    real(grid_p), intent(in), optional :: val, rho
+    logical, intent(in), optional :: constant
+    ! Define which plane we want to add the dirichlet boundary
+    ! conditions on.
+    integer, intent(in), optional :: plane
+  
+    ! Local variables
+    real(grid_p) :: lval, lrho
+    logical :: lconstant
+    real(dp) :: ll(3), cell(3,3)
+    integer :: lplane
+
+
+    lval = 0._grid_p
+    if ( present(val) ) lval = val
+    lrho = 1._grid_p
+    if ( present(rho) ) lrho = rho
+    lconstant = .true.
+    if ( present(constant) ) lconstant = constant
+    lplane = IOR(MG_CELL_A0,MG_CELL_A1)
+    lplane = IOR(lplane,MG_CELL_B0,MG_CELL_B1)
+    lplane = IOR(lplane,MG_CELL_C0,MG_CELL_C1)
+    if ( present(plane) ) lplane = plane
+
+    ! Create all plane-boxes
+    ! Start by creating the boxes starting from origo
+    ll = 0._grid_p
+    cell = grid%cell
+    cell(:,1) = grid%dL(:,1)
+    if ( iand(MG_CELL_A0,lplane) == MG_CELL_A0 .and. grid%n(1) > 1 ) &
+         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
+    cell = grid%cell
+    cell(:,2) = grid%dL(:,2)
+    if ( iand(MG_CELL_B0,lplane) == MG_CELL_B0 .and. grid%n(2) > 1 ) &
+         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
+    cell = grid%cell
+    cell(:,3) = grid%dL(:,3)
+    if ( iand(MG_CELL_C0,lplane) == MG_CELL_C0 .and. grid%n(3) > 1 ) &
+         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
+
+    ! Now create the boxes starting from the opposite
+    ! corner of the cell
+    ll = sum(grid%cell,DIM=2)
+    cell = -grid%cell
+    cell(:,1) = -grid%dL(:,1)
+    if ( iand(MG_CELL_A1,lplane) == MG_CELL_A1 .and. grid%n(1) > 1 ) &
+         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
+    ll = sum(grid%cell,DIM=2)
+    cell = -grid%cell
+    cell(:,2) = -grid%dL(:,2)
+    if ( iand(MG_CELL_B1,lplane) == MG_CELL_B1 .and. grid%n(2) > 1 ) &
+         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
+    ll = sum(grid%cell,DIM=2)
+    cell = -grid%cell
+    cell(:,3) = -grid%dL(:,3)
+    if ( iand(MG_CELL_C1,lplane) == MG_CELL_C1 .and. grid%n(3) > 1 ) &
+         call grid_add_box(grid,ll,cell, lval, lrho, lconstant,recurse=.false.)
+
+    if ( associated(grid%child) ) then
+       call grid_add_dirichlet(grid%child,val=val,rho=rho, &
+            constant=constant,plane=plane)
+    end if
+    
+  end subroutine grid_add_dirichlet
+
+  recursive subroutine grid_add_box(grid, llc, box_cell, val, rho, constant, recurse)
     type(mg_grid), intent(inout) :: grid
     real(dp), intent(in) :: llc(3), box_cell(3,3)
     real(grid_p), intent(in) :: val, rho
     logical, intent(in) :: constant
+    logical, intent(in), optional :: recurse
     
     real(dp) :: dz(3), dyz(3), xyz(3), urc(3), offset(3)
     integer :: i,x,y,z
@@ -263,9 +337,8 @@ contains
     box%place(2,:) = 0
 
     offset = grid%offset + (grid%dL(:,1)+grid%dL(:,2)+grid%dL(:,3))*.5_dp
-    urc = llc + box_cell(:,1) + box_cell(:,2) + box_cell(:,3)
+    urc = llc + sum(box_cell(:,:),DIM=2)
     ! TODO currently this does not work with skewed axis
-
 
 !$OMP parallel do default(shared), private(x,y,z,xyz,dyz,dz)
     do z = 0 , grid%n(3) - 1
@@ -278,6 +351,14 @@ contains
           ! check that the point also
           ! lies inside on the right borders
           if ( all(xyz <= urc) ) then
+!$OMP critical
+             call insert_point(box%place,x,y,z)
+!$OMP end critical
+          end if
+       else if ( all(urc <= xyz) ) then
+          ! check that the point also
+          ! lies inside on the right borders
+          if ( all(xyz <= llc) ) then
 !$OMP critical
              call insert_point(box%place,x,y,z)
 !$OMP end critical
@@ -301,7 +382,15 @@ contains
 
     ! add the box to the child grid
     if ( associated(grid%child) ) then
-       call grid_add_box(grid%child,llc,box_cell,val,rho,constant)
+       x = 0
+       if ( present(recurse) ) then
+          if ( recurse ) x = 1
+       else
+          x = 1
+       end if
+       if ( x == 1 ) then
+          call grid_add_box(grid%child,llc,box_cell,val,rho,constant,recurse = recurse)
+       end if
     end if
 
   contains

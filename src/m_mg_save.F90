@@ -153,7 +153,7 @@ contains
     fname = trim(name)//'.nc'
 
     call ncdf_create(ncdf, fname, &
-         mode=ior(NF90_NETCDF4,NF90_CLASSIC_MODEL), &
+         mode=NF90_64BIT_OFFSEt, &
          overwrite = .true. )
 
     call ncdf_def_dim(ncdf,'x',grid%n(1))
@@ -177,6 +177,8 @@ contains
     else
        call ncdf_def_var(ncdf,'V',NF90_FLOAT,(/'x','y','z'/), atts=dic)
     end if
+
+    call ncdf_enddef(ncdf)
 
     dic = ('title'.kv.'Created by Nick Papior Andersen MG')
     call ncdf_put_gatt(ncdf,atts = dic)
