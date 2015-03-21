@@ -129,7 +129,9 @@ contains
     otol = grid_tolerance(pg) + 1._grid_p
     do while ( otol > grid_tolerance(top_grid) )     
 
-       nr = 1._grid_p / grid_non_constant_elem(pg)
+       ! As the V-cycle steps several times, the change
+       ! is also more dramatic.
+       nr = 1._grid_p / grid_non_constant_elem(pg) / pg%steps
 
        old_sum = grid_sum(pg)
 

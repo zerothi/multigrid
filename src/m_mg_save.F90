@@ -146,6 +146,8 @@ contains
 
     real(grid_p), pointer :: V(:,:,:)
     character(len=200) :: fname
+    integer :: i
+    real(dp) :: Vminmax(2)
 
     V => grid%V
 
@@ -160,6 +162,8 @@ contains
     call ncdf_def_dim(ncdf,'y',grid%n(2))
     call ncdf_def_dim(ncdf,'z',grid%n(3))
     call ncdf_def_dim(ncdf,'xyz',3)
+    call ncdf_def_dim(ncdf,'one',1)
+
 
     ! define the offset, cell (we should probably also add the boxes)
     dic = ('unit'.kv.'Bohr') // ('info'.kv.'Offset of the cell')
@@ -169,8 +173,7 @@ contains
     call ncdf_def_var(ncdf,'cell',NF90_DOUBLE,(/'xyz','xyz'/), atts=dic)
 
     ! Define the variable. 
-    dic = dic//('unit'.kv.'Ry') // ('info'.kv.'Potential') // &
-         ('ATT_DELETE'.kv.1)
+    dic = dic//('info'.kv.'Potential')//('ATT_DELETE'.kv.1)
 
     if ( dp == grid_p ) then
        call ncdf_def_var(ncdf,'V',NF90_DOUBLE,(/'x','y','z'/), atts=dic)
@@ -178,7 +181,15 @@ contains
        call ncdf_def_var(ncdf,'V',NF90_FLOAT,(/'x','y','z'/), atts=dic)
     end if
 
-    call ncdf_enddef(ncdf)
+    dic = ('info'.kv.'Maximum and minimum of BC in solution')
+    call ncdf_def_var(ncdf,'Vmin',NF90_DOUBLE,(/'one'/),atts=dic)
+    call ncdf_def_var(ncdf,'Vmax',NF90_DOUBLE,(/'one'/),atts=dic)
+    Vminmax(1) =  huge(1._dp)
+    Vminmax(2) = -huge(1._dp)
+    do i = 1 , grid%N_box
+       Vminmax(1) = min(Vminmax(1),grid%box(i)%val)
+       Vminmax(2) = max(Vminmax(2),grid%box(i)%val)
+    end do
 
     dic = ('title'.kv.'Created by Nick Papior Andersen MG')
     call ncdf_put_gatt(ncdf,atts = dic)
@@ -186,6 +197,8 @@ contains
     call ncdf_put_var(ncdf,'offset',grid%offset)
     call ncdf_put_var(ncdf,'cell',grid%cell)
     call ncdf_put_var(ncdf,'V',grid%V(1:grid%n(1),1:grid%n(2),1:grid%n(3)))
+    call ncdf_put_var(ncdf,'Vmin',Vminmax(1))
+    call ncdf_put_var(ncdf,'Vmax',Vminmax(2))
 
     call ncdf_close(ncdf)
     

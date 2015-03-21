@@ -268,7 +268,6 @@ contains
          grid%BC(1,3)%method = BC
     if ( iand(MG_CELL_C1,lplane) == MG_CELL_C1 ) &
          grid%BC(2,3)%method = BC
-
     if ( associated(grid%child) ) then
        call grid_BC(grid%child,BC,plane=plane)
     end if
@@ -433,9 +432,10 @@ contains
        end if
     end if
 
+!$OMP parallel default(shared)
+
     ! set all boxes to their values if constant
-!$OMP parallel do default(shared), private(x,y,z), &
-!$OMP&    collapse(3)
+!$OMP do private(x,y,z), collapse(3)
     do z = 1 , grid%n(3)
     do y = 1 , grid%n(2)
     do x = 1 , grid%n(1)
@@ -445,20 +445,64 @@ contains
     end do
     end do
     end do
-!$OMP end parallel do
+!$OMP end do
 
-    if ( grid%BC(1,1)%method == MG_BC_DIRICHLET ) &
-         V(0,:,:) = 0._grid_p
-    if ( grid%BC(2,1)%method == MG_BC_DIRICHLET ) &
-         V(grid%n(1)+1,:,:) = 0._grid_p
-    if ( grid%BC(1,2)%method == MG_BC_DIRICHLET ) &
-         V(:,0,:) = 0._grid_p
-    if ( grid%BC(2,2)%method == MG_BC_DIRICHLET ) &
-         V(:,grid%n(2)+1,:) = 0._grid_p
-    if ( grid%BC(1,3)%method == MG_BC_DIRICHLET ) &
-         V(:,:,0) = 0._grid_p
-    if ( grid%BC(2,3)%method == MG_BC_DIRICHLET ) &
-         V(:,:,grid%n(3)+1) = 0._grid_p
+    if ( grid%BC(1,1)%method == MG_BC_DIRICHLET ) then
+!$OMP workshare
+       V(0,:,:) = 0._grid_p
+!$OMP end workshare nowait
+    else if ( grid%BC(1,1)%method == MG_BC_NEUMANN ) then
+!$OMP workshare
+       V(0,:,:) = V(1,:,:)
+!$OMP end workshare nowait
+    end if
+    if ( grid%BC(2,1)%method == MG_BC_DIRICHLET ) then
+!$OMP workshare
+       V(grid%n(1)+1,:,:) = 0._grid_p
+!$OMP end workshare nowait
+    else if ( grid%BC(2,1)%method == MG_BC_NEUMANN ) then
+!$OMP workshare
+       V(grid%n(1)+1,:,:) = V(grid%n(1),:,:)
+!$OMP end workshare nowait
+    end if
+    if ( grid%BC(1,2)%method == MG_BC_DIRICHLET ) then
+!$OMP workshare
+       V(:,0,:) = 0._grid_p
+!$OMP end workshare nowait
+    else if ( grid%BC(1,2)%method == MG_BC_NEUMANN ) then
+!$OMP workshare
+       V(:,0,:) = V(:,1,:)
+!$OMP end workshare nowait
+    end if
+    if ( grid%BC(2,2)%method == MG_BC_DIRICHLET ) then
+!$OMP workshare
+       V(:,grid%n(2)+1,:) = 0._grid_p
+!$OMP end workshare nowait
+    else if ( grid%BC(2,2)%method == MG_BC_NEUMANN ) then
+!$OMP workshare
+       V(:,grid%n(2)+1,:) = V(:,grid%n(2),:)
+!$OMP end workshare nowait
+    end if
+    if ( grid%BC(1,3)%method == MG_BC_DIRICHLET ) then
+!$OMP workshare
+       V(:,:,0) = 0._grid_p
+!$OMP end workshare nowait
+    else if ( grid%BC(1,3)%method == MG_BC_NEUMANN ) then
+!$OMP workshare
+       V(:,:,0) = V(:,:,1)
+!$OMP end workshare nowait
+    end if
+    if ( grid%BC(2,3)%method == MG_BC_DIRICHLET ) then
+!$OMP workshare
+       V(:,:,0) = 0._grid_p
+!$OMP end workshare nowait
+    else if ( grid%BC(2,3)%method == MG_BC_NEUMANN ) then
+!$OMP workshare
+       V(:,:,grid%n(3)+1) = V(:,:,grid%n(3))
+!$OMP end workshare nowait
+    end if
+
+!$OMP end parallel
 
   end subroutine grid_setup
 

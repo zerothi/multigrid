@@ -30,8 +30,8 @@ program test
   cell(:,3) = (/0._dp,0._dp,31.75_dp/)
 
   ! we create it to be 100x100x100
-  nn = 360
-  nn(2) = 240
+  nn = 240
+  nn(2) = 150
   ! create grid
   call init_grid(top,nn,cell,4,tol=tol)
 
@@ -58,6 +58,7 @@ program test
   write(*,*)'  >> Add all the boxes...'
   ! Four boxes, three with same potential, 1 with different.
   call grid_BC(top,MG_BC_DIRICHLET)
+  call grid_BC(top,MG_BC_NEUMANN,plane = MG_BC_C0)
 
   ll         = (/  0.00000E+00,  0.20100E+01,  0.12340E+02/)
   bcell(:,1) = (/  0.63500E+01,  0.00000E+00,  0.00000E+00/)
