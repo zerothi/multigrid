@@ -5,7 +5,7 @@
 include arch.make
 
 # The phony list
-.PHONY: default dep lib src ncdf test clean
+.PHONY: default dep lib src ncdf test clean mg
 
 default: lib
 
@@ -27,6 +27,9 @@ dep:
 lib: src
 src: ncdf
 	$(MAKE) -C src
+
+mg: ncdf
+	$(MAKE) -C src mg
 
 test: lib
 	$(MAKE) -C test

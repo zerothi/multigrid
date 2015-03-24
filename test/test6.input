@@ -1,0 +1,46 @@
+
+# Define the cell
+cell 31.75 20. 31.75
+
+# The number of layers
+max-layers 5
+boxes 4
+
+save test6_full.cube
+
+begin layers
+  sor 1.8
+  tol 1.e-4
+  mesh-size 240 150 240
+  bc all dirichlet
+  bc c- neumann
+  interp full
+end layers
+
+begin layer -1
+  tol 1.e-6
+end layer
+
+begin box
+  llc 0. 2.01 12.34
+  cell 6.35 7 7
+  value 0.5
+end box
+
+begin box
+  llc 25.4 2.01 12.34
+  cell 6.35 7 7
+  value -0.5
+end box
+
+begin box
+  llc 12.34 2.01 0
+  cell 7 7 6.35
+  value 0.5
+end box
+
+begin box
+  llc 12.34 2.01 25.4
+  cell 7 7 6.35
+  value 0.5
+end box

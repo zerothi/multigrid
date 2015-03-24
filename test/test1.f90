@@ -13,7 +13,7 @@ program test
 
   integer :: i, N , nn(3)
   real(dp) :: cell(3,3)
-  real(grid_p) :: tol, sor
+  real(dp) :: tol, sor
 
   ! tolerance for the convergence
   tol = 1.e-3_grid_p

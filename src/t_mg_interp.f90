@@ -4,18 +4,15 @@ module t_mg_interp
 
   implicit none
 
-  integer, parameter :: INTERP_FULL = 1 
-  integer, parameter :: INTERP_HALF = 2
-
 contains
 
   subroutine grid_restriction(grid)
     type(mg_grid), intent(inout) :: grid
 
     select case ( grid%RES_method )
-    case ( INTERP_FULL ) 
+    case ( MG_INTERP_FULL ) 
        call grid_restriction_full(grid)
-    case ( INTERP_HALF ) 
+    case ( MG_INTERP_HALF ) 
        call grid_restriction_half(grid)
     case default
        call grid_restriction_full(grid)
@@ -27,9 +24,9 @@ contains
     type(mg_grid), intent(inout) :: grid
 
     select case ( grid%PRO_method )
-    case ( INTERP_FULL ) 
+    case ( MG_INTERP_FULL ) 
        call grid_prolongation_full(grid)
-    case ( INTERP_HALF )
+    case ( MG_INTERP_HALF )
        call grid_prolongation_half(grid)
     case default
        call grid_prolongation_full(grid)

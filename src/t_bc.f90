@@ -10,8 +10,9 @@ module t_bc
   integer, parameter :: MG_BC_C0 = 16
   integer, parameter :: MG_BC_C1 = 32
 
-  integer, parameter :: MG_BC_DIRICHLET = 1
-  integer, parameter :: MG_BC_NEUMANN = 2
+  integer, parameter :: MG_BC_PERIODIC = 1
+  integer, parameter :: MG_BC_DIRICHLET = 2
+  integer, parameter :: MG_BC_NEUMANN = 3
 
   type :: tBC
      sequence

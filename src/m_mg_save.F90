@@ -14,6 +14,7 @@ module m_mg_save
   ! get access to the multi-grid type.
   use t_mg
 
+  implicit none
   private
   public :: mg_save
 
@@ -33,31 +34,50 @@ contains
   ! (determines the extension)
   subroutine mg_save(grid,filename,method)
 
+    use m_io, only : lcase
+
     type(mg_grid), intent(in) :: grid
     character(len=*), intent(in) :: filename
     integer, intent(in), optional :: method
 
-    integer :: lmethod
+    integer :: i,lmethod
+    character(len=len(filename)+5) :: fname
 
-    lmethod = MG_SAVE_BINARY
+    ! Base default method on extension
+    fname = filename
+    i = index(filename,'.')
+    if ( i > 0 ) fname = filename(:i-1)
+    if ( lcase(filename(i+1:i+4)) == 'cube' ) then
+       lmethod = MG_SAVE_CUBE
+#ifdef CDF
+    else if ( lcase(filename(i+1:i+2)) == 'nc' ) then
+       lmethod = MG_SAVE_CDF
+#endif
+    else if ( lcase(filename(i+1:i+3)) == 'vmg' ) then
+       lmethod = MG_SAVE_BINARY
+    else if ( lcase(filename(i+1:i+6)) == 'vmgasc' ) then
+       lmethod = MG_SAVE_ASCII
+    else
+       lmethod = MG_SAVE_BINARY
+    end if
     if ( present(method) ) lmethod = method
 
     select case( lmethod )
     case ( MG_SAVE_CUBE )
-       call mg_cube(grid,filename)
+       call mg_cube(grid,fname)
 #ifdef CDF
     case ( MG_SAVE_CDF )
-       call mg_cdf(grid,filename)
+       call mg_cdf(grid,fname)
 #endif
     case ( MG_SAVE_BINARY )
-       call mg_binary(grid,filename)
+       call mg_binary(grid,fname)
     case ( MG_SAVE_ASCII )
-       call mg_ascii(grid,filename)
+       call mg_ascii(grid,fname)
     case default
 #ifdef CDF
-       stop 'Error in file type, must be CUBE/CDF/BIN/ASCII'
+       stop 'Error in file type, must be CUBE/NC/VMG/VMGASC'
 #else
-       stop 'Error in file type, must be CUBE/BIN/ASCII'
+       stop 'Error in file type, must be CUBE/VMG/VMGASC'
 #endif
     end select
     

@@ -16,7 +16,7 @@ program test
   integer :: N , nn(3), c1
   real :: time
   real(dp) :: cell(3,3), bcell(3,3), ll(3)
-  real(grid_p) :: tol, sor
+  real(dp) :: tol, sor
 
   call init_timing()
 

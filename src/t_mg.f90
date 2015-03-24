@@ -15,6 +15,10 @@ module t_mg
   integer, parameter :: MG_CELL_C0 = 16
   integer, parameter :: MG_CELL_C1 = 32
 
+  ! Current interpolation methods
+  integer, parameter :: MG_INTERP_FULL = 1 
+  integer, parameter :: MG_INTERP_HALF = 2
+
   type :: mg_grid
      ! the grid information
      logical      :: enabled =.true. ! turn on/off the run on this grid
@@ -25,13 +29,13 @@ module t_mg
      real(dp)     :: dVol ! volume of voxel
      real(dp)     :: Vol  ! volume of cell
      integer      :: n(3) ! size in each direction
-     real(grid_p) :: sor  ! the SOR value
+     real(dp)     :: sor  ! the SOR value
      real(grid_p) :: a(3) ! the pre-factors for the summation
-     real(grid_p) :: tol  ! the tolerance of the current grid
+     real(dp)     :: tol  ! the tolerance of the current grid
                           ! this allows different tolerances for different layer-grids
      integer :: itt       ! iterations currently processed
      integer :: steps     ! number of steps in each V-cycle
-     integer :: layer     ! the layer that this grid resides in
+     integer :: layer = 0 ! the layer that this grid resides in
      real(grid_p),  pointer :: V  (:,:,:) => null() ! update array
      real(grid_p),  pointer :: g  (:) => null() ! ghost arrays ( one long array for all bounds )
      real(grid_p),  pointer :: g_s(:) => null() ! send ghost arrays ( one long array for all bounds )
@@ -49,9 +53,9 @@ module t_mg
      type(tBC) :: BC(2,3)
 
      ! the prolongation method
-     integer :: PRO_method = 1
+     integer :: PRO_method = MG_INTERP_FULL
      ! the restriction method
-     integer :: RES_method = 1
+     integer :: RES_method = MG_INTERP_FULL
 
   end type mg_grid
 
@@ -74,9 +78,9 @@ contains
     integer,       intent(in)    :: n(3)
     real(dp),      intent(in)    :: cell(3,3)
     integer,       intent(in)    :: boxes
-    real(grid_p),  intent(in), optional :: tol
+    real(dp),      intent(in), optional :: tol
     real(dp),      intent(in), optional :: offset(3)
-    real(grid_p),  intent(in), optional :: sor
+    real(dp),      intent(in), optional :: sor
     integer,       intent(in), optional :: steps
 
     real(dp) :: celll(3), tmp
@@ -211,9 +215,9 @@ contains
 
   end subroutine init_grid_children_half
 
-  subroutine grid_set(grid,sor,tol,layer,steps,restrict,prolong)
+  subroutine grid_set(grid,sor,tol,layer,offset,steps,restrict,prolong)
     type(mg_grid), intent(inout), target :: grid
-    real(grid_p), intent(in), optional :: sor, tol
+    real(dp), intent(in), optional :: sor, tol, offset(3)
     integer, intent(in), optional :: layer, steps, restrict, prolong
 
     type(mg_grid), pointer :: tmp_grid
@@ -231,6 +235,8 @@ contains
          tmp_grid%tol = tol
     if ( present(steps) ) &
          tmp_grid%steps = steps
+    if ( present(offset) ) &
+         tmp_grid%offset = offset
     if ( present(restrict) ) &
          tmp_grid%RES_method = restrict
     if ( present(prolong) ) &
@@ -246,6 +252,13 @@ contains
     integer, intent(in), optional :: plane
 
     integer :: lplane
+
+    select case ( BC ) 
+    case ( MG_BC_PERIODIC , MG_BC_DIRICHLET , MG_BC_NEUMANN )
+       ! correct
+    case default
+       return
+    end select
 
     lplane = IOR(MG_BC_A0,MG_BC_A1)
     lplane = IOR(lplane,MG_BC_B0)
@@ -277,7 +290,7 @@ contains
   recursive subroutine grid_add_box(grid, llc, box_cell, val, rho, constant, recurse)
     type(mg_grid), intent(inout) :: grid
     real(dp), intent(in) :: llc(3), box_cell(3,3)
-    real(grid_p), intent(in) :: val, rho
+    real(dp), intent(in) :: val, rho
     logical, intent(in) :: constant
     logical, intent(in), optional :: recurse
     
@@ -391,7 +404,7 @@ contains
   subroutine grid_add_point(grid, llc, val, rho, constant)
     type(mg_grid), intent(inout) :: grid
     real(dp), intent(in) :: llc(3)
-    real(grid_p), intent(in) :: val, rho
+    real(dp), intent(in) :: val, rho
     logical, intent(in) :: constant
     
     real(dp) :: bl(3,3)
@@ -405,7 +418,7 @@ contains
     type(mg_grid), intent(inout) :: grid
     real(dp), intent(in) :: llc(3), l ! the length of the line
     integer, intent(in) :: dir
-    real(grid_p), intent(in) :: val, rho
+    real(dp), intent(in) :: val, rho
     logical, intent(in) :: constant
     
     real(dp) :: bl(3,3)
@@ -447,60 +460,95 @@ contains
     end do
 !$OMP end do
 
-    if ( grid%BC(1,1)%method == MG_BC_DIRICHLET ) then
+    select case ( grid%BC(1,1)%method ) 
+    case ( MG_BC_PERIODIC )
+!$OMP workshare
+       V(0,:,:) = V(grid%n(1),:,:)
+!$OMP end workshare nowait
+    case ( MG_BC_DIRICHLET )
 !$OMP workshare
        V(0,:,:) = 0._grid_p
 !$OMP end workshare nowait
-    else if ( grid%BC(1,1)%method == MG_BC_NEUMANN ) then
+    case ( MG_BC_NEUMANN ) 
 !$OMP workshare
        V(0,:,:) = V(1,:,:)
 !$OMP end workshare nowait
-    end if
-    if ( grid%BC(2,1)%method == MG_BC_DIRICHLET ) then
+    end select
+
+    select case ( grid%BC(2,1)%method ) 
+    case ( MG_BC_PERIODIC )
+!$OMP workshare
+       V(grid%n(1)+1,:,:) = V(1,:,:)
+!$OMP end workshare nowait
+    case ( MG_BC_DIRICHLET )
 !$OMP workshare
        V(grid%n(1)+1,:,:) = 0._grid_p
 !$OMP end workshare nowait
-    else if ( grid%BC(2,1)%method == MG_BC_NEUMANN ) then
+    case ( MG_BC_NEUMANN ) 
 !$OMP workshare
        V(grid%n(1)+1,:,:) = V(grid%n(1),:,:)
 !$OMP end workshare nowait
-    end if
-    if ( grid%BC(1,2)%method == MG_BC_DIRICHLET ) then
+    end select
+
+    select case ( grid%BC(1,2)%method ) 
+    case ( MG_BC_PERIODIC )
+!$OMP workshare
+       V(:,0,:) = V(:,grid%n(2),:)
+!$OMP end workshare nowait
+    case ( MG_BC_DIRICHLET )
 !$OMP workshare
        V(:,0,:) = 0._grid_p
 !$OMP end workshare nowait
-    else if ( grid%BC(1,2)%method == MG_BC_NEUMANN ) then
+    case ( MG_BC_NEUMANN ) 
 !$OMP workshare
        V(:,0,:) = V(:,1,:)
 !$OMP end workshare nowait
-    end if
-    if ( grid%BC(2,2)%method == MG_BC_DIRICHLET ) then
+    end select
+
+    select case ( grid%BC(2,2)%method ) 
+    case ( MG_BC_PERIODIC )
+!$OMP workshare
+       V(:,grid%n(2)+1,:) = V(:,1,:)
+!$OMP end workshare nowait
+    case ( MG_BC_DIRICHLET )
 !$OMP workshare
        V(:,grid%n(2)+1,:) = 0._grid_p
 !$OMP end workshare nowait
-    else if ( grid%BC(2,2)%method == MG_BC_NEUMANN ) then
+    case ( MG_BC_NEUMANN ) 
 !$OMP workshare
        V(:,grid%n(2)+1,:) = V(:,grid%n(2),:)
 !$OMP end workshare nowait
-    end if
-    if ( grid%BC(1,3)%method == MG_BC_DIRICHLET ) then
+    end select
+
+    select case ( grid%BC(1,3)%method ) 
+    case ( MG_BC_PERIODIC )
+!$OMP workshare
+       V(:,:,0) = V(:,:,grid%n(3))
+!$OMP end workshare nowait
+    case ( MG_BC_DIRICHLET )
 !$OMP workshare
        V(:,:,0) = 0._grid_p
 !$OMP end workshare nowait
-    else if ( grid%BC(1,3)%method == MG_BC_NEUMANN ) then
+    case ( MG_BC_NEUMANN ) 
 !$OMP workshare
        V(:,:,0) = V(:,:,1)
 !$OMP end workshare nowait
-    end if
-    if ( grid%BC(2,3)%method == MG_BC_DIRICHLET ) then
+    end select
+
+    select case ( grid%BC(2,3)%method ) 
+    case ( MG_BC_PERIODIC )
 !$OMP workshare
-       V(:,:,0) = 0._grid_p
+       V(:,:,grid%n(3)+1) = V(:,:,1)
 !$OMP end workshare nowait
-    else if ( grid%BC(2,3)%method == MG_BC_NEUMANN ) then
+    case ( MG_BC_DIRICHLET )
+!$OMP workshare
+       V(:,:,grid%n(3)+1) = 0._grid_p
+!$OMP end workshare nowait
+    case ( MG_BC_NEUMANN ) 
 !$OMP workshare
        V(:,:,grid%n(3)+1) = V(:,:,grid%n(3))
 !$OMP end workshare nowait
-    end if
+    end select
 
 !$OMP end parallel
 
@@ -545,6 +593,8 @@ contains
        grid%N_box = 0
     end if
     call grid_hold_back(grid)
+
+    grid%layer = 0
 
   end subroutine delete_grid
 
@@ -768,7 +818,6 @@ contains
        ll = ll - 1
 
     end do
-    print *,'returning:',lg%layer
 
   end function grid_layer
 
@@ -784,5 +833,63 @@ contains
     end do
     tol = grid%tol * abs(vmax - vmin) !/ maxval(grid%n) !grid_non_constant_elem(grid)
   end function grid_tolerance
+
+  subroutine print_grid(top)
+    type(mg_grid), intent(in), target :: top
+
+    type(mg_grid), pointer :: grid
+
+    integer :: i, j
+    real(grid_p) :: n
+    character(len=10) :: fmt
+
+    i = 1
+    fmt = '(t1,'
+    grid => top
+    write(*,*) '*******************************************'
+    do while ( associated(grid) )
+       write(*,trim(fmt)//'a,i0,a,3(i0,tr1))')' -- Layer: ',grid%layer,' size: ',grid%n
+       write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid_tolerance(grid)
+       write(*,trim(fmt)//'a,f6.4)')' -- SOR: ',grid%sor
+       write(*,trim(fmt)//'a,3(tr1,e10.4))')' -- a(3): ',grid%a
+       if ( associated(grid%child) ) then
+          write(*,trim(fmt)//'a)',advance='NO')' -- Child: '
+          do j = 1 , 3
+             write(*,'(i0,tr1)',advance='NO') grid%n(j)-grid%child%n(j)*2
+          end do
+          write(*,trim(fmt)//'a)',advance='NO')' -- Child-fac: '
+          do j = 1 , 3
+             n = real(grid%n(j),dp)/real(grid%child%n(j),dp)
+             write(*,'(e10.4,tr1)',advance='NO') n - int(n)
+          end do
+          write(*,*) ''
+       end if
+       do j = 1 , grid%N_box
+          call print_box(grid%box(j),indent = i)
+       end do
+       i = i + 1
+       write(fmt,'(a,i0,a)') '(t',i,','
+       grid => grid%child
+    end do
+    write(*,*) '*******************************************'
+  end subroutine print_grid
+
+  subroutine print_box(box,indent)
+    type(mg_box), intent(in) :: box
+    integer, intent(in), optional :: indent
+    integer :: i
+    character(len=10) :: fmt
+
+    i = 1
+    if ( present(indent) ) then
+       write(fmt,'(a,i0,a)') '(t',indent,','
+    else
+       fmt = '(t1,'
+    end if
+    
+    write(*,trim(fmt)//'a,e10.3,a,l2,a,6(tr1,i0))')' ++ Box, value: ',&
+         box%val,' constant?: ',box%constant, &
+         'place: ',box%place
+  end subroutine print_box
 
 end module t_mg
