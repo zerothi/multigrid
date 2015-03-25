@@ -85,6 +85,8 @@ contains
 
   subroutine mg_cube(grid,name)
 
+    use m_io, only : next_unit
+
     type(mg_grid), intent(in) :: grid
     character(len=*), intent(in) :: name
 
@@ -96,7 +98,7 @@ contains
 
     V => grid%V
 
-    io = 10
+    io = next_unit()
     open(io,file=trim(name)//'.cube',form='formatted')
 
     ! two comment lines
@@ -228,6 +230,8 @@ contains
 
   subroutine mg_binary(grid,name)
 
+    use m_io, only : next_unit
+
     type(mg_grid), intent(in) :: grid
     character(len=*), intent(in) :: name
 
@@ -239,7 +243,7 @@ contains
 
     V => grid%V
 
-    io = 10
+    io = next_unit()
     open(io,file=trim(name)//'.VMG',form='unformatted')
 
     ! comment line

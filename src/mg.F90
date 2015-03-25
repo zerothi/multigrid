@@ -51,19 +51,29 @@ program mg
      end if
   end if
 
-  ! Get output file
-  fileout = 'mg.vmg'
-  line = io_step(IO,'save')
-  if ( line(1:1) /= '#' ) then
-     fileout = strip(line)
-  end if
-
   call print_grid(grid)
 
   call mg_gs_cds(grid,method)
 
   ! Save grid
-  call mg_save(grid,fileout)
+  fileout = 'mg.vmg'
+  line = io_step(IO,'save')
+  if ( line(1:1) == '#' ) then
+     ! We default to saving the vmg
+     call mg_save(grid,fileout)
+  else
+     method = -100
+     do while ( method /= IO%il ) 
+        if ( method == -100 ) method = IO%il
+        if ( line(1:1) /= '#' ) then
+           fileout = strip(line)
+           call mg_save(grid,fileout)
+        end if
+        line = io_step(IO,'save')
+     end do
+  end if
+
+  call io_destroy(IO)
 
   call delete_grid(grid)
   

@@ -25,6 +25,7 @@ module m_io
   public :: startswith
   public :: strip
   public :: lcase
+  public :: next_unit
 
   type :: tIO
      ! Handle to read in multi-grid information
@@ -79,9 +80,7 @@ contains
     logical :: opened
 
     inquire(unit=IO%u,opened=opened)
-    if ( opened ) then
-       close(IO%u)
-    end if
+    if ( opened ) close(IO%u)
 
     IO%u = -1
     IO%il = 0
