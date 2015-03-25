@@ -19,7 +19,7 @@ program mg
   type(mg_grid) :: grid
 
   ! solutionmethod
-  integer :: method 
+  integer :: method, itmp
 
   ! Get input file, default to mg.input
   filein = 'mg.input'
@@ -53,6 +53,30 @@ program mg
 
   call print_grid(grid)
 
+  ! Whether the user request an initial saving of the grid
+  ! Save grid
+  line = io_step(IO,'init-save')
+  if ( line(1:1) /= '#' ) then
+
+     ! Create the initial grid
+     call grid_bring_back(grid)
+     call grid_setup(grid,init=.true.)
+
+     itmp = -100
+     do while ( itmp /= IO%il ) 
+        if ( itmp == -100 ) itmp = IO%il
+        if ( line(1:1) /= '#' ) then
+           fileout = strip(line)
+           call mg_save(grid,fileout)
+        end if
+        line = io_step(IO,'init-save')
+     end do
+     
+     ! Delete the grid information
+     call grid_hold_back(grid)
+
+  end if
+
   call mg_gs_cds(grid,method)
 
   ! Save grid
@@ -62,9 +86,9 @@ program mg
      ! We default to saving the vmg
      call mg_save(grid,fileout)
   else
-     method = -100
-     do while ( method /= IO%il ) 
-        if ( method == -100 ) method = IO%il
+     itmp = -100
+     do while ( itmp /= IO%il ) 
+        if ( itmp == -100 ) itmp = IO%il
         if ( line(1:1) /= '#' ) then
            fileout = strip(line)
            call mg_save(grid,fileout)

@@ -87,10 +87,24 @@ contains
 
   end subroutine io_close
 
-  function has_sub(str,sub) result(has)
+  function has_sub(str,sub,word) result(has)
     character(len=*), intent(in) :: str, sub
+    ! Whether the substring should be a word (with surrounding spaces)
+    logical, intent(in), optional :: word
+    integer :: i 
     logical :: has 
-    has = index(str,sub) > 0
+    i = index(str,sub)
+    if ( present(word) ) then
+       if ( word ) then
+          ! single word somewhere in the line
+          i = index(str,' '//trim(sub)//' ')
+          if ( i == 0 ) then
+             ! single word at the beginning of the line
+             i = index(str,trim(sub)//' ')
+          end if
+       end if
+    end if
+    has = i > 0
   end function has_sub
   
   function strip(l,n) result(ol)
@@ -161,7 +175,7 @@ contains
     ! This will pass all comments and will lower-case the line
     line = io_line(IO)
 
-    do while ( .not. has_sub(line,lkeyword) )
+    do while ( .not. has_sub(line,lkeyword,word = .true. ) )
 
        if ( reopen .and. old_il <= IO%il ) then
           ! We have re-read the file and gotten
@@ -175,7 +189,7 @@ contains
           if ( startswith(line,'end') ) in_block = in_block - 1
        else
           if ( startswith(line,'begin') ) in_block = in_block + 1
-          if ( in_block == 1 .and. has_sub(line,lkeyword) ) exit
+          if ( in_block == 1 .and. has_sub(line,lkeyword, word = .true. ) ) exit
        end if
 
        line = io_line(IO)

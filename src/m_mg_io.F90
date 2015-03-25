@@ -126,21 +126,7 @@ contains
        read(line,*) N_boxes
     end if
 
-    ! Read in layers
-    ! Step to layers
-    line = io_step(IO,'layers')
-    if ( line(1:1) /= '#' ) then
-       found(2) = .true.
-       call populate_layer_info()
-       ! Create layers
-       call init_grid(grid,nnn,cell,N_boxes, &
-            tol=tol,offset=offset,sor=sor,steps=steps)
-
-       call grid_set(grid,restrict=restrict,prolong=prolong)
-
-    end if
-
-
+    ! Read in layer information
     line = io_step(IO,'layers')
     if ( line(1:1) /= '#' ) then
        found(2) = .true.
@@ -150,6 +136,8 @@ contains
        ! Create layers
        call init_grid(grid,nnn,cell,N_boxes, &
             tol=tol,offset=offset,sor=sor,steps=steps)
+
+       call init_grid_children_half(grid,max_layer=N_layers)
 
        call grid_set(grid,restrict=restrict,prolong=prolong)
 
@@ -161,18 +149,19 @@ contains
        call grid_BC(grid,BC(1,3),MG_BC_C0)
        call grid_BC(grid,BC(2,3),MG_BC_C1)
 
-       call init_grid_children_half(grid,max_layer=N_layers)
-
     end if
 
     ! Default to not set the BC
     BC = -1
 
+    line = io_step(IO,'layer')
     i = IO%il
-    mask = .true.
-    do while ( any(mask) )
+    mask(1) = .true.
+    do while ( mask(1) )
        line = io_step(IO,'layer')
-       if ( line(1:1) /= '#' .and. .not. has_sub(line,'layers') ) then
+       if ( IO%il == i ) mask(1) = .false.
+
+       if ( line(1:1) /= '#' ) then
           ! first retrieve the index
           line = strip(strip(line))
           read(line,*) i_layer
@@ -203,20 +192,18 @@ contains
           end if
        end if
 
-       if ( IO%il <= i ) mask(1) = .false.
-       if ( .not. mask(1) ) then
-          if ( i <= IO%il ) mask(2) = .false.
-       end if
-          
     end do
 
     ! Read in all boxes
     i_box = 0
+    line = io_step(IO,'box')
     i = IO%il
-    mask = .true.
-    do while ( any(mask) )
-       line = io_step(IO,'begin')
-       if ( has_sub(line,'box') ) then
+    mask(1) = .true.
+    do while ( mask(1) )
+       line = io_step(IO,'box')
+       if ( IO%il == i ) mask(1) = .false.
+
+       if ( line(1:1) /= '#' ) then
 
           ! Increment box-counter
           i_box = i_box + 1
@@ -226,11 +213,6 @@ contains
 
           call grid_add_box(grid, llc, cell, value, rho, constant)
           
-       end if
-
-       if ( IO%il <= i ) mask(1) = .false.
-       if ( .not. mask(1) ) then
-          if ( i <= IO%il ) mask(2) = .false.
        end if
        
     end do
