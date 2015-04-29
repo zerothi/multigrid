@@ -67,6 +67,7 @@ contains
     integer :: N_boxes, i_box
     real(dp) :: llc(3), value, rho
     logical :: constant
+    integer :: w_pref
 
     ! First destroy the grid
     call delete_grid(grid)
@@ -126,6 +127,20 @@ contains
        read(line,*) N_boxes
     end if
 
+    ! Cell-based weight, short cell vectors have high impact
+    w_pref = 0
+    line = io_step(IO,'weight')
+    if ( line(1:1) /= '#' ) then
+       line = strip(line)
+       if ( has_sub(line,'equal',word = .true.) ) then
+          w_pref = 0
+       else if ( has_sub(line,'short',word = .true.) ) then
+          w_pref = 1
+       else if ( has_sub(line,'long',word = .true.) ) then
+          w_pref = -1
+       end if
+    end if
+
     ! Read in layer information
     line = io_step(IO,'layers')
     if ( line(1:1) /= '#' ) then
@@ -138,8 +153,8 @@ contains
             tol=tol,offset=offset,sor=sor,steps=steps)
 
        call init_grid_children_half(grid,max_layer=N_layers)
-
-       call grid_set(grid,restrict=restrict,prolong=prolong)
+       ! Count number of layers
+       N_layers = layers(grid)
 
        ! Create all BC
        call grid_BC(grid,BC(1,1),MG_BC_A0)
@@ -148,6 +163,18 @@ contains
        call grid_BC(grid,BC(2,2),MG_BC_B1)
        call grid_BC(grid,BC(1,3),MG_BC_C0)
        call grid_BC(grid,BC(2,3),MG_BC_C1)
+
+       do i_layer = 1 , N_layers
+          call grid_set(grid,layer=i_layer,weight = w_pref, &
+               restrict = restrict, prolong = prolong ) 
+       end do
+
+    else
+       
+       write(*,'(a)') 'Could not read generic layer information'
+       write(*,'(a)') 'This information is necessary!'
+
+       stop
 
     end if
 

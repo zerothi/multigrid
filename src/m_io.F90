@@ -79,7 +79,11 @@ contains
     type(tIO), intent(inout) :: IO
     logical :: opened
 
-    inquire(unit=IO%u,opened=opened)
+    if ( IO%u < 0 ) then
+       opened = .false.
+    else
+       inquire(unit=IO%u,opened=opened)
+    end if
     if ( opened ) close(IO%u)
 
     IO%u = -1
@@ -185,14 +189,17 @@ contains
        end if
        
        ! If we are in a block, we do not look for keywords
-       if ( in_block > 0 ) then
-          if ( startswith(line,'end') ) in_block = in_block - 1
-       else
-          if ( startswith(line,'begin') ) in_block = in_block + 1
+       if ( startswith(line,'begin') ) then
+          in_block = in_block + 1
           if ( in_block == 1 .and. has_sub(line,lkeyword, word = .true. ) ) exit
        end if
 
        line = io_line(IO)
+
+       if ( startswith(line,'end') ) then
+          if ( in_block > 0 ) in_block = in_block - 1
+          line = io_line(IO)
+       end if
 
        if ( line(1:1) == '#' ) then
           call io_close(IO)

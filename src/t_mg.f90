@@ -144,21 +144,8 @@ contains
     grid%sor = 2._grid_p / (1._grid_p + 3.1415926535897_grid_p / maxval(grid%n) )
     if ( present(sor) ) grid%sor = sor
 
-    ! This additional weighting of each cell
-    ! means that different situations might occur
-    ! 1. If the "important" direction is along a 
-    !    longer voxel direction, the convergence is slower
-    ! 2. If the "important" direction is along a 
-    !    shorter voxel direction, the convergence is faster
-    tmp = 1._dp / ( 2._dp * sum(celll) ) 
-    grid%a(1) = celll(2) * celll(3) * tmp
-    grid%a(2) = celll(1) * celll(3) * tmp
-    grid%a(3) = celll(1) * celll(2) * tmp
-
-    ! this normalization does not really matter, however,
-    ! for the convenience of seeing their appropriate weigths
-    ! it could be nice to see...
-    grid%a = grid%a / sum(grid%a)
+    ! Equal weights for each direction
+    grid%a(:) = 1._dp / 3._dp
 
     ! pre-allocate room for the boxes
     grid%N_box = boxes
@@ -202,12 +189,17 @@ contains
       type(mg_grid), intent(in) :: grid
       integer, intent(out) :: n(3)
       integer :: i
+      
+      n(:) = grid%n(:) / 2
 
       do i = 1 , 3
-         n(i) = grid%n(i) / 2
          if ( n(i) < 20 ) then
-            n(:) = 0
-            return
+            if ( any(n > n(i) * 3) ) then
+               n(i) = grid%n(i)
+            else
+               n(:) = 0
+               return
+            end if
          end if
       end do
 
@@ -215,12 +207,14 @@ contains
 
   end subroutine init_grid_children_half
 
-  subroutine grid_set(grid,sor,tol,layer,offset,steps,restrict,prolong)
+  subroutine grid_set(grid,sor,tol,layer,weight,offset,steps,restrict,prolong)
     type(mg_grid), intent(inout), target :: grid
     real(dp), intent(in), optional :: sor, tol, offset(3)
-    integer, intent(in), optional :: layer, steps, restrict, prolong
+    integer, intent(in), optional :: layer, steps, restrict, prolong, weight
 
     type(mg_grid), pointer :: tmp_grid
+    integer :: i
+    real(dp) :: celll(3)
 
     tmp_grid => grid
     if ( present(layer) ) then
@@ -241,6 +235,52 @@ contains
          tmp_grid%RES_method = restrict
     if ( present(prolong) ) &
          tmp_grid%PRO_method = prolong
+    if ( present(weight) ) then
+
+       do i = 1 , 3
+
+          celll(i) = &
+               tmp_grid%dL(1,i) ** 2 + &
+               tmp_grid%dL(2,i) ** 2 + &
+               tmp_grid%dL(3,i) ** 2
+       end do
+
+       select case ( weight ) 
+       case ( 0 )
+          ! Equal weights
+          tmp_grid%a = 1._dp
+       case ( 1 ) 
+
+          ! This additional weighting of each cell
+          ! means that different situations might occur
+          ! 1. If the "important" direction is along a 
+          !    longer voxel direction, the convergence is slower
+          ! 2. If the "important" direction is along a 
+          !    shorter voxel direction, the convergence is faster
+          tmp_grid%a(1) = celll(2) * celll(3)
+          tmp_grid%a(2) = celll(1) * celll(3)
+          tmp_grid%a(3) = celll(1) * celll(2)
+
+          ! Prefer the short cells (default)
+       case ( -1 )
+
+          ! This additional weighting of each cell
+          ! means that different situations might occur
+          ! 1. If the "important" direction is along a 
+          !    short voxel direction, the convergence is slower
+          ! 2. If the "important" direction is along a 
+          !    longer voxel direction, the convergence is faster
+          tmp_grid%a(1) = celll(1) / (celll(2) * celll(3))
+          tmp_grid%a(2) = celll(2) / (celll(1) * celll(3))
+          tmp_grid%a(3) = celll(3) / (celll(1) * celll(2))
+       end select
+ 
+       ! this normalization does not really matter, however,
+       ! for the convenience of seeing their appropriate weigths
+       ! it could be nice to see...
+       tmp_grid%a = tmp_grid%a / sum(tmp_grid%a)
+
+    end if
 
   end subroutine grid_set
 
@@ -839,9 +879,9 @@ contains
 
     type(mg_grid), pointer :: grid
 
-    integer :: i, j
+    integer :: i, j, k
     real(grid_p) :: n
-    character(len=10) :: fmt
+    character(len=10) :: fmt, bc(2)
 
     i = 1
     fmt = '(t1,'
@@ -852,6 +892,20 @@ contains
        write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid_tolerance(grid)
        write(*,trim(fmt)//'a,f6.4)')' -- SOR: ',grid%sor
        write(*,trim(fmt)//'a,3(tr1,e10.4))')' -- a(3): ',grid%a
+       do j = 1 , 3
+          do k = 1 , 2
+             select case ( grid%BC(k,j)%method ) 
+             case ( MG_BC_PERIODIC )
+                BC(k) = 'periodic'
+             case ( MG_BC_DIRICHLET )
+                BC(k) = 'dirichlet'
+             case ( MG_BC_NEUMANN )
+                BC(k) = 'neumann'
+             end select
+          end do
+          write(*,trim(fmt)//'a,i0,2a,'' : '',a)')' -- BC(',j,'): ',trim(BC(1)),trim(BC(2))
+       end do
+
        if ( associated(grid%child) ) then
           write(*,trim(fmt)//'a)',advance='NO')' -- Child: '
           do j = 1 , 3
