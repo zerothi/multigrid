@@ -903,7 +903,7 @@ contains
                 BC(k) = 'neumann'
              end select
           end do
-          write(*,trim(fmt)//'a,i0,2a,'' : '',a)')' -- BC(',j,'): ',trim(BC(1)),trim(BC(2))
+          write(*,trim(fmt)//'a,i0,2a,'' : '',a)')' -- BC(',j,'){ ',trim(BC(1)),trim(BC(2))//' }'
        end do
 
        if ( associated(grid%child) ) then
@@ -941,9 +941,9 @@ contains
        fmt = '(t1,'
     end if
     
-    write(*,trim(fmt)//'a,e10.3,a,l2,a,6(tr1,i0))')' ++ Box, value: ',&
-         box%val,' constant?: ',box%constant, &
-         'place: ',box%place
+    write(*,trim(fmt)//'a,e10.3,a,l1,tr1,a,6(tr1,i0),a)')' ++ Box{ value: ',&
+         box%val,' constant: ',box%constant, &
+         'place: ',box%place,' }'
   end subroutine print_box
 
 end module t_mg

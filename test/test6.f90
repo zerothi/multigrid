@@ -41,17 +41,17 @@ program test
   call init_grid_children_half(top,max_layer=4)
 
   ! manually set the sor-parameter
-  call grid_set(top,layer=1,sor=1.8_grid_p)
-  call grid_set(top,layer=2,sor=1.8_grid_p)
-  call grid_set(top,layer=3,sor=1.8_grid_p)
-  call grid_set(top,layer=4,sor=1.8_grid_p)
-  call grid_set(top,layer=5,sor=1.8_grid_p)
+  call grid_set(top,layer=1,sor=1.8_dp)
+  call grid_set(top,layer=2,sor=1.8_dp)
+  call grid_set(top,layer=3,sor=1.8_dp)
+  call grid_set(top,layer=4,sor=1.8_dp)
+  call grid_set(top,layer=5,sor=1.8_dp)
 
   do N = 1 , layers(top)
      call grid_set(top,layer=N,sor=sor,tol=tol)
      !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
-  call grid_set(top,layer=layers(top),tol=tol/100._grid_p)
+  call grid_set(top,layer=layers(top),tol=tol/100._dp)
 
   write(*,*)' >> Created all children...'
 
@@ -64,19 +64,19 @@ program test
   bcell(:,1) = (/  0.63500E+01,  0.00000E+00,  0.00000E+00/)
   bcell(:,2) = (/  0.00000E+00,  0.70000E+01,  0.00000E+00/)
   bcell(:,3) = (/  0.00000E+00,  0.00000E+00,  0.70000E+01/)
-  call grid_add_box(top, ll, bcell, .5_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, .5_dp, 1._dp, .true.)
 
   ll         = (/  0.25400E+02,  0.20100E+01,  0.12340E+02/)
-  call grid_add_box(top, ll, bcell, -.5_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, -.5_dp, 1._dp, .true.)
 
   ll         = (/  0.12340E+02,  0.20100E+01,  0.00000E+00/)
   bcell(:,1) = (/  0.70000E+01,  0.00000E+00,  0.00000E+00/)
   bcell(:,2) = (/  0.00000E+00,  0.70000E+01,  0.00000E+00/)
   bcell(:,3) = (/  0.00000E+00,  0.00000E+00,  0.63500E+01/)
-  call grid_add_box(top, ll, bcell, .5_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, .5_dp, 1._dp, .true.)
 
   ll         = (/  0.12340E+02,  0.20100E+01,  0.25400E+02/)
-  call grid_add_box(top, ll, bcell, .5_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, .5_dp, 1._dp, .true.)
 
   call print_grid(top)
 

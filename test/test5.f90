@@ -40,11 +40,11 @@ program test
   call init_grid_children_half(top,max_layer=4)
 
   ! manually set the sor-parameter
-  call grid_set(top,layer=1,sor=1.8_grid_p)
-  call grid_set(top,layer=2,sor=1.8_grid_p)
-  call grid_set(top,layer=3,sor=1.8_grid_p)
-  call grid_set(top,layer=4,sor=1.8_grid_p)
-  call grid_set(top,layer=5,sor=1.8_grid_p)
+  call grid_set(top,layer=1,sor=1.8_dp)
+  call grid_set(top,layer=2,sor=1.8_dp)
+  call grid_set(top,layer=3,sor=1.8_dp)
+  call grid_set(top,layer=4,sor=1.8_dp)
+  call grid_set(top,layer=5,sor=1.8_dp)
 
   do N = 1 , layers(top)
      call grid_set(top,layer=N,sor=sor,tol=tol)
@@ -62,9 +62,9 @@ program test
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
        cell(2,2) / 2._dp - bcell(2,2) / 2._dp , &
        0._dp /)
-  call grid_add_box(top, ll, bcell, 1._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 1._dp, 1._dp, .true.)
   ll(3) = cell(3,3) - bcell(3,3)
-  call grid_add_box(top, ll, bcell, -1._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, -1._dp, 1._dp, .true.)
 
   ! add the long constriction
   bcell(:,1:2) = bcell(:,1:2) / 2._dp
@@ -74,7 +74,7 @@ program test
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
        cell(2,2) / 5._dp - bcell(2,2) / 2._dp , & ! place it in the bottom of y
        cell(3,3) / 10._dp /)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
+  call grid_add_box(top, ll, bcell, 0._dp, 3._dp, .false.)
 
 
   ! add connecting constriction
@@ -85,7 +85,7 @@ program test
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
        cell(2,2) / 5._dp + bcell(2,2) / 2._dp , &
        cell(3,3) / 10._dp /)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
+  call grid_add_box(top, ll, bcell, 0._dp, 3._dp, .false.)
 
   ! add connecting constriction
   ! length of box
@@ -95,7 +95,7 @@ program test
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
        cell(2,2) / 5._dp + bcell(2,2) / 2._dp , &
        cell(3,3) - cell(3,3) / 5._dp /)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 3._grid_p, .false.)
+  call grid_add_box(top, ll, bcell, 0._dp, 3._dp, .false.)
 
   call print_grid(top)
 

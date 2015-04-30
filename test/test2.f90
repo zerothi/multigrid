@@ -40,11 +40,11 @@ program test
   call init_grid_children_half(top,max_layer=4)
 
   ! manually set the sor-parameter
-  call grid_set(top,layer=1,sor=1.2_grid_p)
-  call grid_set(top,layer=2,sor=1.6_grid_p)
-  call grid_set(top,layer=3,sor=1.6_grid_p)
-  call grid_set(top,layer=4,sor=1.5_grid_p)
-  call grid_set(top,layer=5,sor=1.4_grid_p)
+  call grid_set(top,layer=1,sor=1.2_dp)
+  call grid_set(top,layer=2,sor=1.6_dp)
+  call grid_set(top,layer=3,sor=1.6_dp)
+  call grid_set(top,layer=4,sor=1.5_dp)
+  call grid_set(top,layer=5,sor=1.4_dp)
 
   do N = 1 , layers(top)
      call grid_set(top,layer=N,sor=sor,tol=tol)
@@ -54,11 +54,11 @@ program test
 
   write(*,*)'  >> Add all the boxes...'
   bcell(:,:) = cell(:,:)
-  bcell(:,3) = cell(:,3) / 10._grid_p
+  bcell(:,3) = cell(:,3) / 10._dp
   ll = 0._dp
-  call grid_add_box(top, ll, bcell, 1._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 1._dp, 1._dp, .true.)
   ll(3) = cell(3,3) - bcell(3,3)
-  call grid_add_box(top, ll, bcell, -1._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, -1._dp, 1._dp, .true.)
 
   call print_grid(top)
 

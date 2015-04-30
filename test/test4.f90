@@ -1,7 +1,6 @@
 program test
 
   use t_mg
-  use t_mg_interp, only : INTERP_HALF, INTERP_FULL
   use m_gs_CDS
   use m_mg_save
 
@@ -42,17 +41,17 @@ program test
   call init_grid_children_half(top,max_layer=8)
 
   ! manually set the sor-parameter
-  call grid_set(top,layer=1,sor=1.8_grid_p)
-  call grid_set(top,layer=2,sor=1.8_grid_p)
-  call grid_set(top,layer=3,sor=1.8_grid_p)
-  call grid_set(top,layer=4,sor=1.8_grid_p)
+  call grid_set(top,layer=1,sor=1.8_dp)
+  call grid_set(top,layer=2,sor=1.8_dp)
+  call grid_set(top,layer=3,sor=1.8_dp)
+  call grid_set(top,layer=4,sor=1.8_dp)
 
   do N = 1 , layers(top)
-     call grid_set(top,layer=N,sor=1.8_grid_p,tol=tol)
+     call grid_set(top,layer=N,sor=1.8_dp,tol=tol)
      !if ( N > 1 ) call grid_onoff_layer(top,.false.,layer=N)
   end do
-  call grid_set(top,layer=layers(top),sor=1.8_grid_p,tol=tol/100._grid_p)
-  call grid_set(top,layer=layers(top)-1,sor=1.8_grid_p,tol=tol/10._grid_p)
+  call grid_set(top,layer=layers(top),sor=1.8_dp,tol=tol/100._dp)
+  call grid_set(top,layer=layers(top)-1,sor=1.8_dp,tol=tol/10._dp)
 
   write(*,*)' >> Created all children...'
 
@@ -64,26 +63,26 @@ program test
        cell(1,1) / 2._dp - bcell(1,1) / 2._dp , &
        0._dp , &
        0._dp /)
-  call grid_add_box(top, ll, bcell, 0.5_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 0.5_dp, 1._dp, .true.)
   ll(2) = cell(2,2) - bcell(2,2)
   ll(3) = cell(3,3) / 10._dp
-  call grid_add_box(top, ll, bcell, 1.0_grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 1.0_dp, 1._dp, .true.)
   ll(2) = cell(2,2) / 2._dp - bcell(2,2) / 2._dp
   ll(3) = cell(3,3) - bcell(3,3)
-  call grid_add_box(top, ll, bcell, -1._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, -1._dp, 1._dp, .true.)
 
   ! add points to control run-away potentials
   do N = 1 , 3
      bcell(:,N) = cell(:,N) / (nn(N)-.05 * nn(N))
   end do
   ll = (/ 0._dp,0._dp,cell(3,3)/)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 0._dp, 1._dp, .true.)
   ll = (/ cell(1,1),cell(2,2),cell(3,3)/)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 0._dp, 1._dp, .true.)
   ll = (/ cell(1,1),cell(2,2),0._dp/)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 0._dp, 1._dp, .true.)
   ll = (/ 0._dp,cell(2,2),0._dp/)
-  call grid_add_box(top, ll, bcell, 0._grid_p, 1._grid_p, .true.)
+  call grid_add_box(top, ll, bcell, 0._dp, 1._dp, .true.)
 
   call print_grid(top)
 
@@ -94,7 +93,7 @@ program test
 
   do N = 1 , layers(top)
      call grid_set(top,layer=N, &
-          restrict = INTERP_HALF, prolong = INTERP_HALF)
+          restrict = MG_INTERP_HALF, prolong = MG_INTERP_HALF)
   end do
 
   call mg_gs_cds(top,CDS_BOTTOM_UP)
