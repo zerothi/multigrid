@@ -83,7 +83,7 @@ contains
     real(dp),      intent(in), optional :: sor
     integer,       intent(in), optional :: steps
 
-    real(dp) :: celll(3), tmp
+    real(dp) :: tmp
     integer  :: i
 
     ! ensure it is empty
@@ -97,11 +97,6 @@ contains
     grid%n = n
     do i = 1 , 3
 
-       celll(i) = &
-            cell(1,i) ** 2 + &
-            cell(2,i) ** 2 + &
-            cell(3,i) ** 2
-       celll(i) = celll(i) ! / grid%n(i)
        grid%dL(:,i) = cell(:,i) / grid%n(i)
     end do
     do i = 1 , 3
@@ -238,17 +233,15 @@ contains
     if ( present(weight) ) then
 
        do i = 1 , 3
-
-          celll(i) = &
-               tmp_grid%dL(1,i) ** 2 + &
-               tmp_grid%dL(2,i) ** 2 + &
-               tmp_grid%dL(3,i) ** 2
+          celll(i) = sum( tmp_grid%dL(:,i) ** 2 )
        end do
 
        select case ( weight ) 
        case ( 0 )
+
           ! Equal weights
           tmp_grid%a = 1._dp
+
        case ( 1 ) 
 
           ! This additional weighting of each cell
@@ -261,7 +254,6 @@ contains
           tmp_grid%a(2) = celll(1) * celll(3)
           tmp_grid%a(3) = celll(1) * celll(2)
 
-          ! Prefer the short cells (default)
        case ( -1 )
 
           ! This additional weighting of each cell
@@ -273,6 +265,7 @@ contains
           tmp_grid%a(1) = celll(1) / (celll(2) * celll(3))
           tmp_grid%a(2) = celll(2) / (celll(1) * celll(3))
           tmp_grid%a(3) = celll(3) / (celll(1) * celll(2))
+
        end select
  
        ! this normalization does not really matter, however,
