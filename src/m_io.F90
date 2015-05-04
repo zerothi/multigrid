@@ -24,7 +24,7 @@ module m_io
   public :: has_sub
   public :: startswith
   public :: strip
-  public :: lcase
+  public :: ccase, lcase, ucase
   public :: next_unit
 
   type :: tIO
@@ -136,8 +136,9 @@ contains
     starts = index(str,sub) == 1
   end function startswith
 
-  function io_line(IO) result(line)
+  function io_line(IO,case) result(line)
     type(tIO), intent(inout) :: IO
+    character(len=1), intent(in), optional :: case
     character(len=300) :: line
     integer :: i
     
@@ -157,15 +158,23 @@ contains
           ! Clear comments
           line(i:) = ' '
        end if
-       line = lcase(line)
+       if ( present(case) ) then
+          if ( case == 'L' .or. case == 'l' ) &
+               line = lcase(line)
+          if ( case == 'U' .or. case == 'u' ) &
+               line = ucase(line)
+       else
+          line = lcase(line)
+       end if
     end do
 
   end function io_line
 
-  function io_step(IO,keyword) result(line)
+  function io_step(IO,keyword,case) result(line)
     type(tIO), intent(inout) :: IO
     character(len=*), intent(in) :: keyword
     character(len=len_trim(keyword)) :: lkeyword
+    character(len=1), intent(in), optional :: case
     character(len=300) :: line
     integer :: old_il, in_block
     logical :: reopen
@@ -177,7 +186,7 @@ contains
     lkeyword = lcase(trim(keyword))
 
     ! This will pass all comments and will lower-case the line
-    line = io_line(IO)
+    line = io_line(IO,case=case)
 
     do while ( .not. has_sub(line,lkeyword,word = .true. ) )
 
@@ -194,7 +203,7 @@ contains
           if ( in_block == 1 .and. has_sub(line,lkeyword, word = .true. ) ) exit
        end if
 
-       line = io_line(IO)
+       line = io_line(IO,case=case)
 
        if ( startswith(line,'end') ) then
           if ( in_block > 0 ) in_block = in_block - 1
@@ -236,6 +245,51 @@ contains
     end do
 
   end function lcase
+
+  ! Upper-case a string
+  pure function ucase(str) 
+    character(len=*), intent(in) :: str
+    character(len=len(str)) :: ucase
+    integer :: ic, i
+
+    character(len=26), parameter :: upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    character(len=26), parameter :: lower = 'abcdefghijklmnopqrstuvwxyz'
+
+    ! Capitalize each letter if it is lowecase
+    ucase = str
+    i = scan(ucase,lower)
+    do while ( i > 0 ) 
+       ! Get the conversion index
+       ic = index(lower,ucase(i:i))
+       ucase(i:i) = upper(ic:ic)
+       ic = scan(ucase(i+1:),lower)
+       if ( ic > 0 ) then
+          i = i + ic
+       else
+          i = 0
+       end if
+    end do
+
+  end function ucase
+
+  ! Upper-case a string
+  pure function ccase(str,case) 
+    character(len=*), intent(in) :: str
+    character(len=1), intent(in), optional :: case
+    character(len=len(str)) :: ccase
+
+    if ( present(case) ) then
+       if ( scan(case,'Uu') > 0 ) then
+          ccase = ucase(str)
+       else if ( scan(case,'Ll') > 0 ) then
+          ccase = lcase(str)
+       else
+          ccase = str
+       end if
+    else
+       ccase = str
+    end if
+  end function ccase
 
   ! Return the next available unit for the system
   function next_unit() result(u)
