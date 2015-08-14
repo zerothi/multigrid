@@ -18,7 +18,6 @@ ncdf:
 endif
 
 
-
 # Make dependency list
 dep:
 	$(MAKE) -C src dep

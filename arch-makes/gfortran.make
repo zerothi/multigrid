@@ -18,7 +18,7 @@ ARFLAGS = cru
 
 C_V=gnu-5.1.0
 Z_PATH=/opt/zlib/1.2.8/$(C_V)
-NCDF_PATH=/opt/netcdf-serial/4.3.3/$(C_V)
+NCDF_PATH=/opt/netcdf-serial/4.3.3.1/$(C_V)
 HDF5_PATH=/opt/hdf5-serial/1.8.14/$(C_V)
 
 INC = -I$(NCDF_PATH)/include

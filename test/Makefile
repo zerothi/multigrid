@@ -7,8 +7,8 @@ include ../arch.make
 
 ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
 # Only the save object has references to the netcdf library
-LIBS := ../ncdf/src/libncdf.a ../ncdf/fvar/libvardict.a $(LIBS)
-INC += -I../ncdf/src -I../ncdf/fvar
+LIBS := ../ncdf/src/libncdf.a ../ncdf/fdict/libvardict.a $(LIBS)
+INC += -I../ncdf/src -I../ncdf/fdict
 endif
 
 # The phony list
