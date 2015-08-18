@@ -137,7 +137,8 @@ contains
 
        old_itt = pg%itt
 
-       print '(2(a,i0))','Running between ',pg%layer,' and ',cg%layer
+       print '(3(a,i0),a)','Running between ',pg%layer,' and ',cg%layer, &
+            ' in ',pg%steps, ' steps.'
 
        ! We must have a double loop...
        itol = grid_tolerance(pg) + 1._grid_p

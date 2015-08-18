@@ -23,11 +23,11 @@ HDF5_PATH=/opt/hdf5-serial/1.8.14/$(C_V)
 
 INC = -I$(NCDF_PATH)/include
 
-FPPFLAGS = -DCDF
+FPPFLAGS = -DMG__CDF
 
 LIBS = -fopenmp
 
-ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
+ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
 LIBS += -L$(NCDF_PATH)/lib -Wl,-rpath=$(NCDF_PATH)/lib
 LIBS += -L$(HDF5_PATH)/lib -Wl,-rpath=$(HDF5_PATH)/lib
 LIBS += -L$(Z_PATH)/lib -Wl,-rpath=$(Z_PATH)/lib

@@ -19,7 +19,7 @@ module m_mg_save
   public :: mg_save
 
   integer, parameter, public :: MG_SAVE_CUBE = 1
-#ifdef CDF
+#ifdef MG__CDF
   integer, parameter, public :: MG_SAVE_CDF = 2
 #endif
   integer, parameter, public :: MG_SAVE_BINARY = 3
@@ -49,7 +49,7 @@ contains
     if ( i > 0 ) fname = filename(:i-1)
     if ( lcase(filename(i+1:i+4)) == 'cube' ) then
        lmethod = MG_SAVE_CUBE
-#ifdef CDF
+#ifdef MG__CDF
     else if ( lcase(filename(i+1:i+2)) == 'nc' ) then
        lmethod = MG_SAVE_CDF
 #endif
@@ -65,7 +65,7 @@ contains
     select case( lmethod )
     case ( MG_SAVE_CUBE )
        call mg_cube(grid,fname)
-#ifdef CDF
+#ifdef MG__CDF
     case ( MG_SAVE_CDF )
        call mg_cdf(grid,fname)
 #endif
@@ -74,7 +74,7 @@ contains
     case ( MG_SAVE_ASCII )
        call mg_ascii(grid,fname)
     case default
-#ifdef CDF
+#ifdef MG__CDF
        stop 'Error in file type, must be CUBE/NC/VMG/VMGASC'
 #else
        stop 'Error in file type, must be CUBE/VMG/VMGASC'
@@ -123,35 +123,35 @@ contains
     ! create the format string
     write(fmt,'(a,i0,a)') '(',grid%n(1),'(e12.6,tr1))'
     
-    fmt = '(e12.6)'
+    fmt = '(5(e12.6,tr1),e12.6)'
 
     ! write cube data...
     if ( grid%n(3) == 1 ) then
-       do i = 1 , grid%n(2) * grid%n(3)
-          write(io,fmt) 0._grid_p
-       end do
+       write(io,fmt) (0._grid_p,i=1,grid%n(2)*grid%n(3))
     end if
 
     ! this is due to the cube file format
-    do x = 1 , grid%n(1)
-       do y = 1 , grid%n(2)
-          do z = 1 , grid%n(3)
-             write(io,fmt) V(x,y,z)
-          end do
-       end do
-    end do
+    write(io,fmt) (((V(x,y,z),z=1,grid%n(3)),y=1,grid%n(2)),x=1,grid%n(1))
+!!$    do x = 1 , grid%n(1)
+!!$       do y = 1 , grid%n(2)
+!!$          do z = 1 , grid%n(3)
+!!$             write(io,fmt) V(x,y,z)
+!!$          end do
+!!$       end do
+!!$    end do
 
     if ( grid%n(3) == 1 ) then
-       do i = 1 , grid%n(1) * grid%n(2)
-          write(io,fmt) 0._grid_p
-       end do
+       write(io,fmt) (0._grid_p,i=1,grid%n(1)*grid%n(2))
+!!$       do i = 1 , grid%n(1) * grid%n(2)
+!!$          write(io,fmt) 0._grid_p
+!!$       end do
     end if
 
     close(io)
 
   end subroutine mg_cube
 
-#ifdef CDF
+#ifdef MG__CDF
 
   subroutine mg_cdf(grid,name)
 

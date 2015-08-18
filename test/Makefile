@@ -5,7 +5,14 @@
 # arch.make for correcting input
 include ../arch.make
 
-ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
+# Check for CDF compilation
+ifeq ($(USE_CDF),1)
+ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
+FPPFLAGS += -DMG__CDF
+endif
+endif
+
+ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
 # Only the save object has references to the netcdf library
 LIBS := ../ncdf/src/libncdf.a ../ncdf/fdict/libvardict.a $(LIBS)
 INC += -I../ncdf/src -I../ncdf/fdict

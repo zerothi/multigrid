@@ -74,6 +74,7 @@ module t_mg
 contains
 
   subroutine init_grid(grid, n, cell, boxes, tol, offset, sor, steps)
+    use m_unit, only : Pi
     type(mg_grid), intent(inout) :: grid
     integer,       intent(in)    :: n(3)
     real(dp),      intent(in)    :: cell(3,3)
@@ -98,9 +99,8 @@ contains
     do i = 1 , 3
 
        grid%dL(:,i) = cell(:,i) / grid%n(i)
-    end do
-    do i = 1 , 3
        grid%dLL(i) = sum(grid%dL(i,:))
+
     end do
     
     grid%Vol = ( cell(2,1)*cell(3,2) - cell(3,1)*cell(2,2) ) * cell(1,3) + &
@@ -136,7 +136,7 @@ contains
     end if
 
     ! the SOR parameter
-    grid%sor = 2._grid_p / (1._grid_p + 3.1415926535897_grid_p / maxval(grid%n) )
+    grid%sor = 2._grid_p / (1._grid_p + Pi / maxval(grid%n) )
     if ( present(sor) ) grid%sor = sor
 
     ! Equal weights for each direction
@@ -868,6 +868,9 @@ contains
   end function grid_tolerance
 
   subroutine print_grid(top)
+
+    use m_unit, only : Ang
+
     type(mg_grid), intent(in), target :: top
 
     type(mg_grid), pointer :: grid
@@ -881,6 +884,12 @@ contains
     grid => top
     write(*,*) '*******************************************'
     do while ( associated(grid) )
+       if ( i == 1 ) then
+          write(*,trim(fmt)//'a)')' -- Cell (Ang):'
+          do j = 1 , 3
+             write(*,trim(fmt)//'tr4,3(f10.5,tr1))') grid%cell(:,j) / Ang
+          end do
+       end if
        write(*,trim(fmt)//'a,i0,a,3(i0,tr1))')' -- Layer: ',grid%layer,' size: ',grid%n
        write(*,trim(fmt)//'a,e10.3)')' -- tolerance: ',grid_tolerance(grid)
        write(*,trim(fmt)//'a,f6.4)')' -- SOR: ',grid%sor
@@ -896,7 +905,7 @@ contains
                 BC(k) = 'neumann'
              end select
           end do
-          write(*,trim(fmt)//'a,i0,2a,'' : '',a)')' -- BC(',j,'){ ',trim(BC(1)),trim(BC(2))//' }'
+          write(*,trim(fmt)//'a,i0,2a,'' : '',a)')' -- BC(',j,') { ',trim(BC(1)),trim(BC(2))//' }'
        end do
 
        if ( associated(grid%child) ) then
@@ -904,7 +913,7 @@ contains
           do j = 1 , 3
              write(*,'(i0,tr1)',advance='NO') grid%n(j)-grid%child%n(j)*2
           end do
-          write(*,trim(fmt)//'a)',advance='NO')' -- Child-fac: '
+          write(*,trim(fmt)//'a)',advance='NO')'  fac: '
           do j = 1 , 3
              n = real(grid%n(j),dp)/real(grid%child%n(j),dp)
              write(*,'(e10.4,tr1)',advance='NO') n - int(n)
@@ -934,7 +943,7 @@ contains
        fmt = '(t1,'
     end if
     
-    write(*,trim(fmt)//'a,e10.3,a,l1,tr1,a,6(tr1,i0),a)')' ++ Box{ value: ',&
+    write(*,trim(fmt)//'a,e10.3,a,l1,tr1,a,6(tr1,i0),a)')' ++ Box { value: ',&
          box%val,' constant: ',box%constant, &
          'place: ',box%place,' }'
   end subroutine print_box

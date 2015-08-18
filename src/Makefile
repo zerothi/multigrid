@@ -7,7 +7,13 @@ include ../arch.make
 # The phony list
 .PHONY: default deb clean mg
 
-ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
+ifeq ($(USE_CDF),1)
+ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
+FPPFLAGS += -DMG__CDF
+endif
+endif
+
+ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
 # Only the save object has references to the netcdf library
 LIBS := ../ncdf/src/libncdf.a ../ncdf/fdict/libvardict.a $(LIBS)
 INC += -I../ncdf/src -I../ncdf/fdict
@@ -21,8 +27,11 @@ dep:
 	sfmakedepend --depend=obj --modext=o \
 		*.f90 *.F90
 
+# Default objects
+OBJS  = m_unit.o
+
 # Grid objects
-OBJS = t_mg.o t_mg_interp.o t_bc.o m_mg_save.o m_io.o m_mg_io.o
+OBJS += t_mg.o t_mg_interp.o t_bc.o m_mg_save.o m_io.o m_mg_io.o
 
 # Gauss-Seidel objects
 OBJS += m_gs_CDS.o
@@ -46,8 +55,8 @@ clean:
 
 # DO NOT DELETE THIS LINE - used by make depend
 m_gs_CDS.o: t_mg.o t_mg_interp.o
-m_mg_io.o: m_io.o t_mg.o
+m_mg_io.o: m_io.o m_unit.o t_mg.o
 m_mg_save.o: m_io.o t_mg.o
 mg.o: m_gs_CDS.o m_io.o m_mg_io.o m_mg_save.o t_mg.o
-t_mg.o: t_bc.o
+t_mg.o: m_unit.o t_bc.o
 t_mg_interp.o: t_mg.o

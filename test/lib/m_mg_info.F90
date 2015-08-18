@@ -14,7 +14,7 @@ contains
 
     ! Save all available formats
     call mg_save(grid,fname,MG_SAVE_CUBE)
-#ifdef CDF
+#ifdef MG__CDF
     call mg_save(grid,fname,MG_SAVE_CDF)
 #endif
     call mg_save(grid,fname,MG_SAVE_BINARY)

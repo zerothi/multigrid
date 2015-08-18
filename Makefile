@@ -9,7 +9,14 @@ include arch.make
 
 default: lib
 
-ifneq (,$(findstring -DCDF,$(FPPFLAGS)))
+# Check for CDF compilation
+ifeq ($(USE_CDF),1)
+ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
+FPPFLAGS += -DMG__CDF
+endif
+endif
+
+ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
 ncdf:
 	$(MAKE) -C ncdf "ARCH_MAKE=$$(pwd)/arch.make"
 else

@@ -46,6 +46,8 @@ contains
   !   prolongation half|full
   ! end
   subroutine iomg_read(IO,grid)
+    use m_unit
+
     type(tIO), intent(inout) :: IO
     type(mg_grid), intent(inout) :: grid
 
@@ -54,6 +56,9 @@ contains
     character(len=100) :: opt
     integer :: lBC, i
     type(mg_grid), pointer :: g
+
+    ! Conversion tool
+    real(dp) :: conv 
 
     ! The cell information
     logical :: found(2), mask(2)
@@ -89,11 +94,29 @@ contains
     N_boxes = 10
 
     ! Read in the options
+    line = io_step(IO,'length')
+    if ( line(1:1) /= '#' ) then
+       line = strip(line)
+       if ( startswith(line,'ang') ) then
+          conv = Ang
+       else if ( startswith(line,'bohr') ) then
+          conv = 1._dp
+       else if ( startswith(line,'nm') ) then
+          conv = 10._dp * Ang
+       else
+          stop 'Could not decipher the length unit [Ang|Bohr|nm]'
+       end if
+    else
+       ! We default to the Ang input
+       conv = Ang
+    end if
+
     line = io_step(IO,'offset')
     if ( line(1:1) /= '#' ) then
        line = strip(line)
        ! Read in the offset
        read(line,*) offset
+       offset = offset * conv
     end if
 
     line = io_step(IO,'cell')
@@ -108,11 +131,9 @@ contains
        else
           line = strip(line)
           ! Read in the offset
-          read(line,*) cell(:,1)
-          cell(2,2) = cell(2,1)
-          cell(3,3) = cell(3,1)
-          cell(2:3,1) = 0._dp
+          read(line,*) cell(1,1),cell(2,2),cell(3,3)
        end if
+       cell = cell * conv
     end if
 
     line = io_step(IO,'max-layers')
@@ -339,7 +360,7 @@ contains
       constant = .true.
       line = io_line(IO)
       do while ( .not. has_sub(line,'end') ) 
-         
+
          if ( startswith(line,'llc') .or. &
               startswith(line,'lower-left-corner') ) then
             line = strip(line)
@@ -375,6 +396,10 @@ contains
 
          line = io_line(IO)
       end do
+
+
+      llc = llc * conv
+      cell = cell * conv
 
     end subroutine populate_box_info
     

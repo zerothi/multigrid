@@ -188,7 +188,8 @@ contains
     ! This will pass all comments and will lower-case the line
     line = io_line(IO,case=case)
 
-    do while ( .not. has_sub(line,lkeyword,word = .true. ) )
+    do while ( in_block > 0 .or. &
+         (.not. has_sub(line,lkeyword,word = .true. )) )
 
        if ( reopen .and. old_il <= IO%il ) then
           ! We have re-read the file and gotten
@@ -207,7 +208,7 @@ contains
 
        if ( startswith(line,'end') ) then
           if ( in_block > 0 ) in_block = in_block - 1
-          line = io_line(IO)
+          line = io_line(IO,case=case)
        end if
 
        if ( line(1:1) == '#' ) then
