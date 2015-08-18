@@ -186,6 +186,8 @@ contains
 
     if ( .not. grid%enabled ) return
 
+    print'(tr5,a6,3a11)','itt','delta','avg-sum','err'
+
     nr = 1._grid_p / (grid_non_constant_elem(grid))
 
     tol = grid_tolerance(grid) + 1._grid_p
