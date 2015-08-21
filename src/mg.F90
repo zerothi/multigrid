@@ -89,7 +89,8 @@ program mg
      itmp = -100
      do while ( itmp /= IO%il ) 
         if ( itmp == -100 ) itmp = IO%il
-        if ( line(1:1) /= '#' ) then
+        if ( line(1:1) /= '#' .and. &
+             startswith(line,'save') ) then
            fileout = strip(line)
            call mg_save(grid,fileout)
         end if
