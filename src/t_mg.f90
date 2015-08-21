@@ -909,9 +909,9 @@ contains
        end do
 
        if ( associated(grid%child) ) then
-          write(*,trim(fmt)//'a)',advance='NO')' -- Child: '
+          write(*,trim(fmt)//'a)',advance='NO')' -- Child (delta): '
           do j = 1 , 3
-             write(*,'(i0,tr1)',advance='NO') grid%n(j)-grid%child%n(j)*2
+             write(*,'(i0,tr1)',advance='NO') grid%n(j)-grid%child%n(j)
           end do
           write(*,trim(fmt)//'a)',advance='NO')'  fac: '
           do j = 1 , 3

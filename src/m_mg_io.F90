@@ -119,10 +119,10 @@ contains
        offset = offset * conv
     end if
 
-    line = io_step(IO,'cell')
+    line = io_step(IO,'cell', part='K')
     if ( line(1:1) /= '#' ) then
        found(1) = .true.
-       if ( startswith(line,'begin') ) then
+       if ( io_part(line,'begin') ) then
           ! we have a block cell
           do i = 1 , 3
              line = io_line(IO)
@@ -163,7 +163,7 @@ contains
     end if
 
     ! Read in layer information
-    line = io_step(IO,'layers')
+    line = io_step(IO,'layers', part='B')
     if ( line(1:1) /= '#' ) then
        found(2) = .true.
        write(*,'(a)') 'Reading generic layer information'
@@ -202,11 +202,11 @@ contains
     ! Default to not set the BC
     BC = -1
 
-    line = io_step(IO,'layer')
+    line = io_step(IO,'layer', part='B')
     i = IO%il
     mask(1) = .true.
     do while ( mask(1) )
-       line = io_step(IO,'layer')
+       line = io_step(IO,'layer', part='B')
        if ( IO%il == i ) mask(1) = .false.
 
        if ( line(1:1) /= '#' ) then
@@ -244,11 +244,11 @@ contains
 
     ! Read in all boxes
     i_box = 0
-    line = io_step(IO,'box')
+    line = io_step(IO,'box', part='B')
     i = IO%il
     mask(1) = .true.
     do while ( mask(1) )
-       line = io_step(IO,'box')
+       line = io_step(IO,'box', part='B')
        if ( IO%il == i ) mask(1) = .false.
 
        if ( line(1:1) /= '#' ) then

@@ -10,6 +10,16 @@ program mg
 
   use m_gs_CDS
 
+#ifdef _OPENMP
+  use omp_lib, only : omp_get_num_threads, omp_get_schedule
+  use omp_lib, only : OMP_SCHED_STATIC, OMP_SCHED_DYNAMIC
+  use omp_lib, only : OMP_SCHED_GUIDED, OMP_SCHED_AUTO
+#else
+!$use omp_lib, only : omp_get_num_threads, omp_get_schedule
+!$use omp_lib, only : OMP_SCHED_STATIC, OMP_SCHED_DYNAMIC
+!$use omp_lib, only : OMP_SCHED_GUIDED, OMP_SCHED_AUTO
+#endif
+
   character(len=100) :: filein, fileout
   character(len=300) :: line
   
@@ -20,6 +30,29 @@ program mg
 
   ! solutionmethod
   integer :: method, itmp
+
+!$OMP parallel
+!$OMP master
+!$    itmp = omp_get_num_threads()
+!$    write(*,'(a,i0,a)') '* Running ',itmp,' OpenMP threads.'
+#ifdef _OPENMP
+!$    write(*,'(a,i0,a)') '* OpenMP version ', _OPENMP
+#endif
+!$    call omp_get_schedule(itmp,narg)
+!$    select case ( itmp )
+!$    case ( OMP_SCHED_STATIC ) 
+!$    write(*,'(a,i0)') '* OpenMP runtime schedule STATIC, chunks ',narg
+!$    case ( OMP_SCHED_DYNAMIC ) 
+!$    write(*,'(a,i0)') '* OpenMP runtime schedule DYNAMIC, chunks ',narg
+!$    case ( OMP_SCHED_GUIDED ) 
+!$    write(*,'(a,i0)') '* OpenMP runtime schedule GUIDED, chunks ',narg
+!$    case ( OMP_SCHED_AUTO ) 
+!$    write(*,'(a,i0)') '* OpenMP runtime schedule AUTO, chunks ',narg
+!$    case default
+!$    write(*,'(a,i0)') '* OpenMP runtime schedule UNKNOWN, chunks ',narg
+!$    end select
+!$OMP end master
+!$OMP end parallel
 
   ! Get input file, default to mg.input
   filein = 'mg.input'
@@ -55,7 +88,7 @@ program mg
 
   ! Whether the user request an initial saving of the grid
   ! Save grid
-  line = io_step(IO,'init-save',case='N')
+  line = io_step(IO,'init-save')
   if ( line(1:1) /= '#' ) then
 
      ! Create the initial grid
@@ -69,7 +102,7 @@ program mg
            fileout = strip(line)
            call mg_save(grid,fileout)
         end if
-        line = io_step(IO,'init-save',case='N')
+        line = io_step(IO,'init-save')
      end do
      
      ! Delete the grid information
@@ -81,7 +114,7 @@ program mg
 
   ! Save grid
   fileout = 'mg.vmg'
-  line = io_step(IO,'save',case='N')
+  line = io_step(IO,'save')
   if ( line(1:1) == '#' ) then
      ! We default to saving the vmg
      call mg_save(grid,fileout)
@@ -89,12 +122,11 @@ program mg
      itmp = -100
      do while ( itmp /= IO%il ) 
         if ( itmp == -100 ) itmp = IO%il
-        if ( line(1:1) /= '#' .and. &
-             startswith(line,'save') ) then
+        if ( line(1:1) /= '#' ) then
            fileout = strip(line)
            call mg_save(grid,fileout)
         end if
-        line = io_step(IO,'save',case='N')
+        line = io_step(IO,'save')
      end do
   end if
 

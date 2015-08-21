@@ -19,6 +19,7 @@ module m_io
   public :: io_close
   public :: io_line
   public :: io_step
+  public :: io_part
 
   ! Generic string routines
   public :: has_sub
@@ -138,6 +139,7 @@ contains
 
   function io_line(IO,case) result(line)
     type(tIO), intent(inout) :: IO
+    ! Select case of the readed line (default lower)
     character(len=1), intent(in), optional :: case
     character(len=300) :: line
     integer :: i
@@ -170,45 +172,58 @@ contains
 
   end function io_line
 
-  function io_step(IO,keyword,case) result(line)
+  function io_step(IO,keyword,case,part) result(line)
     type(tIO), intent(inout) :: IO
+    ! The searched keyword in the file
     character(len=*), intent(in) :: keyword
-    character(len=len_trim(keyword)) :: lkeyword
+    ! Character to control case of keyword search.
+    ! It defaults to "Lowercase"
     character(len=1), intent(in), optional :: case
-    character(len=300) :: line
+    ! Whether it should be a sub-part of the
+    ! word, or a full word
+    !  part == 'S'(ubstring), start line with keyword (default)
+    !  part == 'P'(art), a substring has to have keyword
+    !  part == 'B'(lock), a block should have keyword (begin <keyword>)
+    !  part == 'C'(ommon-block), a block should have sub keyword (begin *<keyword>*)
+    !  part == 'K', either 'S' or 'B'
+    !  part == 'O', either 'P' or 'C'
+    character(len=1), intent(in), optional :: part
+    ! A copy of the keyword (for case)
+    character(len=len_trim(keyword)) :: lkeyword
+    character(len=1) :: lase, lpart
+    character(len=300) :: line, lline
     integer :: old_il, in_block
     logical :: reopen
 
+    lase = 'L'
+    if ( present(case) ) lase = case
     reopen = .false.
     in_block = 0
     old_il = IO%il
-    ! Return to lower-case keyword
-    lkeyword = lcase(trim(keyword))
 
-    ! This will pass all comments and will lower-case the line
-    line = io_line(IO,case=case)
+    ! Return to keyword for case comparison
+    lkeyword = ccase(trim(keyword),case=lase)
 
-    do while ( in_block > 0 .or. &
-         (.not. has_sub(line,lkeyword,word = .true. )) )
+    do 
+       ! This will pass all comments and will lower-case the line
+       line = io_line(IO,case=lase)
+       lline = lcase(line)
+
+       if ( in_block == 0 ) then
+          if ( io_part(line,keyword,part=part) ) exit
+       end if
 
        if ( reopen .and. old_il <= IO%il ) then
           ! We have re-read the file and gotten
           ! to the same point again
           line = '#'
-          return
+          exit
        end if
        
        ! If we are in a block, we do not look for keywords
-       if ( startswith(line,'begin') ) then
-          in_block = in_block + 1
-          if ( in_block == 1 .and. has_sub(line,lkeyword, word = .true. ) ) exit
-       end if
-
-       line = io_line(IO,case=case)
-
-       if ( startswith(line,'end') ) then
+       if ( startswith(lline,'begin') ) in_block = in_block + 1
+       if ( startswith(lline,'end') ) then
           if ( in_block > 0 ) in_block = in_block - 1
-          line = io_line(IO,case=case)
        end if
 
        if ( line(1:1) == '#' ) then
@@ -220,6 +235,60 @@ contains
     end do
 
   end function io_step
+
+  function io_part(line,keyword,part) result(ret)
+    ! The line to search for
+    character(len=*), intent(in) :: line
+    ! The searched keyword in the line
+    character(len=*), intent(in) :: keyword
+
+    ! Whether it should be a sub-part of the
+    ! word, or a full word
+    !  part == 'S'(ubstring), start line with keyword (default)
+    !  part == 'P'(art), a substring has to have keyword
+    !  part == 'B'(lock), a block should have keyword (begin <keyword>)
+    !  part == 'C'(ommon-block), a block should have sub keyword (begin *<keyword>*)
+    !  part == 'K', either 'S' or 'B'
+    !  part == 'O', either 'P' or 'C'
+    character(len=1), intent(in), optional :: part
+    logical :: ret
+
+    ! The option for part
+    character(len=1) :: lpart
+    ! The lowercase line
+    character(len=len(line)) :: lline
+
+    lpart = 'S'
+    if ( present(part) ) lpart = ucase(part)
+
+    lline = lcase(line)
+
+    ret = .true.
+    
+    select case ( lpart )
+    case ( 'S' )
+       if ( startswith(line,keyword) ) return
+    case ( 'P' )
+       if ( has_sub(line,keyword) ) return
+    case ( 'B' )
+       if ( startswith(lline,'begin') .and. &
+            has_sub(line,keyword, word = .true.) ) return
+    case ( 'C' )
+       if ( startswith(lline,'begin') .and. &
+            has_sub(line,keyword) ) return
+    case ( 'K' ) ! 'S' or 'B'
+       if ( startswith(line,keyword) ) return
+       if ( startswith(lline,'begin') .and. &
+            has_sub(line,keyword, word = .true.) ) return
+    case ( 'O' ) ! 'P' or 'C'
+       if ( has_sub(line,keyword) ) return
+       if ( startswith(lline,'begin') .and. &
+            has_sub(line,keyword) ) return
+    end select
+
+    ret = .false.
+
+  end function io_part
     
   ! Lower-case a string
   pure function lcase(str) 
