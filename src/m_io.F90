@@ -161,10 +161,7 @@ contains
           line(i:) = ' '
        end if
        if ( present(case) ) then
-          if ( case == 'L' .or. case == 'l' ) &
-               line = lcase(line)
-          if ( case == 'U' .or. case == 'u' ) &
-               line = ucase(line)
+          line = ccase(line,case)
        else
           line = lcase(line)
        end if

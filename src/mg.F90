@@ -88,7 +88,7 @@ program mg
 
   ! Whether the user request an initial saving of the grid
   ! Save grid
-  line = io_step(IO,'init-save')
+  line = io_step(IO,'init-save',case='C')
   if ( line(1:1) /= '#' ) then
 
      ! Create the initial grid
@@ -102,7 +102,7 @@ program mg
            fileout = strip(line)
            call mg_save(grid,fileout)
         end if
-        line = io_step(IO,'init-save')
+        line = io_step(IO,'init-save',case='C')
      end do
      
      ! Delete the grid information
@@ -114,7 +114,7 @@ program mg
 
   ! Save grid
   fileout = 'mg.vmg'
-  line = io_step(IO,'save')
+  line = io_step(IO,'save',case='C')
   if ( line(1:1) == '#' ) then
      ! We default to saving the vmg
      call mg_save(grid,fileout)
@@ -126,7 +126,7 @@ program mg
            fileout = strip(line)
            call mg_save(grid,fileout)
         end if
-        line = io_step(IO,'save')
+        line = io_step(IO,'save',case='C')
      end do
   end if
 
