@@ -18,7 +18,7 @@ endif
 
 ifneq (,$(findstring -DMG__CDF,$(FPPFLAGS)))
 ncdf:
-	$(MAKE) -C ncdf "ARCH_MAKE=$$(pwd)/arch.make"
+	$(MAKE) -C ncdf "SETUP=$$(pwd)/arch.make"
 else
 ncdf:
 	@echo "Compiling without NetCDF support"
@@ -43,4 +43,4 @@ test: lib
 clean:
 	$(MAKE) -C src clean
 	$(MAKE) -C test clean
-	-$(MAKE) -C ncdf clean "ARCH_MAKE=$$(pwd)/arch.make" clean
+	-$(MAKE) -C ncdf clean "SETUP=$$(pwd)/arch.make" clean

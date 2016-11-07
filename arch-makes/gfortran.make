@@ -16,12 +16,13 @@ FFLAGS += -fopenmp
 
 ARFLAGS = cru
 
-C_V=gnu-5.2.0
+C_V=gnu-6.2.0
 Z_PATH=/opt/zlib/1.2.8/$(C_V)
-NCDF_PATH=/opt/netcdf-serial/4.3.3.1/$(C_V)
-HDF5_PATH=/opt/hdf5-serial/1.8.15/$(C_V)
+NCDF_PATH=/opt/netcdf-serial/4.4.1/$(C_V)
+HDF5_PATH=/opt/hdf5-serial/1.8.17/$(C_V)
 
-INC = -I$(NCDF_PATH)/include
+INCLUDES = -I$(NCDF_PATH)/include
+
 
 FPPFLAGS = -DMG__CDF
 
@@ -35,7 +36,7 @@ LIBS += -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz
 endif
 
 .F90.o:
-	$(FC) -c $(INC) $(FFLAGS) $(FPPFLAGS) $< 
+	$(FC) -c $(INCLUDES) $(FFLAGS) $(FPPFLAGS) $< 
 .f90.o:
-	$(FC) -c $(INC) $(FFLAGS) $<
+	$(FC) -c $(INCLUDES) $(FFLAGS) $<
 

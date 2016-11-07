@@ -195,13 +195,13 @@ contains
     call ncdf_def_var(ncdf,'cell',NF90_DOUBLE,(/'xyz','xyz'/), atts=dic)
 
     ! Define the variable. 
-    dic = dic//('info'.kv.'Potential')//('ATT_DELETE'.kv.1)
-
+    dic = dic // ('info'.kv.'Electrostatic potential')
     if ( dp == grid_p ) then
        call ncdf_def_var(ncdf,'V',NF90_DOUBLE,(/'x','y','z'/), atts=dic)
     else
-       call ncdf_def_var(ncdf,'V',NF90_FLOAT,(/'x','y','z'/), atts=dic)
+       call ncdf_def_var(ncdf,'V',NF90_FLOAT, (/'x','y','z'/), atts=dic)
     end if
+    call delete(dic)
 
     dic = ('info'.kv.'Maximum and minimum of BC in solution')
     call ncdf_def_var(ncdf,'Vmin',NF90_DOUBLE,(/'one'/),atts=dic)
@@ -213,7 +213,7 @@ contains
        Vminmax(2) = max(Vminmax(2),grid%box(i)%val)
     end do
 
-    dic = ('title'.kv.'Created by Nick Papior Andersen MG')
+    dic = ('title'.kv.'Created by Nick R. Papior MG')
     call ncdf_put_gatt(ncdf,atts = dic)
 
     call ncdf_put_var(ncdf,'offset',grid%offset)
